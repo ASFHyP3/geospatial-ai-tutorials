@@ -1,0 +1,34 @@
+# NAS Initial Setup
+
+1. Initial login
+1. Setup SSH pass-through
+1. Setup Conda configuration
+
+## 1. Initial login
+On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login to your compute environment of choice. I reccommend the Pleiades Front End (PFE). To set your system password, you'll need to contact NAS user support. [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
+
+
+## 2. SSH Pass-Through
+NAS is configured to have a front-end login system, the Secure Front End (SFE), that is then used to SSH into the NAS compute resources, such as the PFE. Setting up SSH pass-through allows you to login into compute resources, such as the PFE, in a single step.
+
+[This tutorial](https://www.nas.nasa.gov/hecc/support/kb/setting-up-public-key-authentication_230.html) describes how to setup public key authentication. Note that if you already have a key that is not password protected, you will need to create a new one that is.
+
+[This tutorial](https://www.nas.nasa.gov/hecc/support/kb/setting-up-ssh-passthrough_232.html) describes how to setup SSH pass-through once public key authentication is setup.
+
+## 3. Conda settings
+NAS comes with pre-built conda environments that can be used for processing (see the full list [here](https://www.nas.nasa.gov/hecc/support/kb/machine-learning-overview_572.html)). Unfortunately, none of the provided environments fit our needs, so we will need to do some setup to create our own.
+
+This involves:
+1. Pre-loading conda on startup
+1. Changing the environment storage paths to a NAS location with adequate storage.
+
+To do this, add the following lines to your `~/.profile` file in PFE:
+```bash
+module use -a /swbuild/analytix/tools/modulefiles
+module load miniconda3/v4
+export CONDA_INSTALL=/nobackup/$USER/conda/envs
+export CONDA_PKGS=/nobackup/$USER/conda/pkgs
+conda config --add envs_dirs $CONDA_INSTALL
+conda config --add pkgs_dirs $CONDA_PKGS
+```
+The first two lines load conda on startup, and the next four change the environment and package install directories to locations on the `/nobackup` drive.

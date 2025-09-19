@@ -1,0 +1,39 @@
+name: terramind
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python<3.13
+  - pip
+  - gdal
+  - pytorch
+  - torchvision
+  - pytorch>=2.0
+  - rioxarray
+  - albumentations==1.4.10
+  - albucore==0.0.16
+  - rasterio
+  - torchmetrics
+  - geopandas
+  - lightly
+  - jsonargparse<=4.35.0
+  - h5py
+  - hdf5plugin
+  - numba
+  - mlflow
+  - lightning
+  - segmentation-models-pytorch<=0.4
+  - jsonargparse
+  - pytest
+  - torchgeo>=0.7.0
+  - einops
+  - timm>=1.0.15
+  - pycocotools
+  - huggingface_hub
+  - tifffile
+  - python-box
+  - wandb
+  - termcolor
+  - hdf5plugin
+  - h5netcdf
+  - pytest-sugar
