@@ -6,20 +6,20 @@ default values for the purposes of ASF's foundational model leveraging the Terra
 ### Trainer
 [`Trainer` is a Lightning parameter](https://lightning.ai/docs/pytorch/stable/common/trainer.html) that handles loop details.
 
-| *Parameter* | *Description* | *Default*                               |
-| :---- | :---- |:----------------------------------------|
-| `accelerator` | Device used to run | `auto`                                  |
-| `strategy` | Kind of parallelism | `auto`                                  |
-| `devices` | Available devices | `auto`                                  |
-| `num_nodes` | Number of nodes | `1`                                     |
-| `precision` | Kind of precision | `16-mixed`                              |
-| `logger/class_path` | [Logging format](https://lightning.ai/docs/pytorch/stable/extensions/logging.html) | `TensorBoardLogger`                     |
-| `logger/init_args/save_dir` | File for log |                                         |
-| `logger/init_args/name` | Name of log |                                         |
-| `max_epochs` | Max number of epochs to train the model | `**[long enough it doesn’t stop early]` |
-| `check_val_every_n_epoch` | Frequency to evaluate the model | `1`                                     |
-| `enable_checkpointing` | Enables periodically saving model to a file | `True`                                  |
-| `default_root_dir` | Directory for model checkpoints |                                         |
+| *Parameter*                            | *Description*                                                                      | *Default*                               |
+|:---------------------------------------|:-----------------------------------------------------------------------------------|:----------------------------------------|
+| `accelerator`                          | Device used to run                                                                 | `auto`                                  |
+| `strategy`                             | Kind of parallelism                                                                | `auto`                                  |
+| `devices`                              | Available devices                                                                  | `auto`                                  |
+| `num_nodes`                            | Number of nodes                                                                    | `1`                                     |
+| `precision`                            | Kind of precision                                                                  | `16-mixed`                              |
+| `logger`                               | T/F is there will be a logger                                                      | `True`                                  |
+| `callbacks/class_path`                 | [Logging format](https://lightning.ai/docs/pytorch/stable/extensions/logging.html) | `RichProgressBar`                       |
+| `callbacks/class_path`                 | [Logging format](https://lightning.ai/docs/pytorch/stable/extensions/logging.html) | `LearningRateMonitor`                   |
+| `callbacks/init_args/logging_interval` | Type of interval for logging                                                       | `epoch`                                 |
+| `max_epochs`                           | Max number of epochs to train the model                                            | `**[long enough it doesn’t stop early]` |
+| `log_every_n_steps`                    | How many steps to wait between logging                                             | `5`                                     |
+| `default_root_dir`                     | Directory for model checkpoints                                                    |                                         |
 
 ### Datamodule
 The field data is expected to receive a [generic datamodule](https://ibm.github.io/terratorch/stable/package/generic_datamodules/) or any other datamodule compatible with [Lightning Datamodules](https://lightning.ai/docs/pytorch/stable/data/datamodule.html), as those defined in TerraMind’s [collection of datamodules](https://ibm.github.io/terratorch/stable/package/datamodules/). The class\_path parameter will inform the rest of the required parameters.
@@ -81,11 +81,11 @@ data:
 ### Model
 The model field is the configuration for `task + model`.
 
-| *Parameter* | *Description* | *Default*                               |
-| :---- | :---- |:----------------------------------------|
-| `class_path` | Regression task | [`terratorch.tasks.PixelwiseRegreesionTask`](https://ibm.github.io/terratorch/tasks/) |
+| *Parameter* | *Description*   | *Default*| 
+| :---- |:----------------|:----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `class_path` | Regression task | [`terratorch.tasks.SemanticSegmentationTask`](https://ibm.github.io/terratorch/tasks/#terratorch.tasks.segmentation_tasks.SemanticSegmentationTask) |
 
-. Since we are using the same TerraMind model for all our purposes, parameters here will not change. The following parameters are going to be the defaults. 
+Since we are using the same TerraMind model for all our purposes, parameters here will not change. The following code block will be the default:
 ```
 model:
   class_path: terratorch.tasks.SemanticSegmentationTask
@@ -108,7 +108,7 @@ model:
       necks:
         - name: SelectIndices
           indices: [2, 5, 8, 11]  # base version
-#          indices: [5, 11, 17, 23]  # large version
+          # indices: [5, 11, 17, 23]  # large version
         - name: ReshapeTokensToImage
           remove_cls_token: False
         - name: LearnedInterpolateToPyramidal
@@ -126,6 +126,7 @@ model:
       - Others
       - Burned                       |
 ```
+Note that there is one toggle that might change, depending on which TerraMind backbone is used. If `model_args/backbone` is `terramind_v1_base`, make sure that `necks/indices` should be `[2, 5, 8, 11]`. If `model_args/backbone` is `terramind_v1_large`, make sure that `necks/indices` should be `[5, 11, 17, 23]`.
 
 ### Optimizer and Learning Rate Scheduler 
 The [Optimizer](https://docs.pytorch.org/docs/stable/optim.html) parameter will implement desired optimization algorithm.
@@ -138,8 +139,8 @@ the [AdamW algorithm](https://arxiv.org/pdf/1711.05101).
 | `lr`           | Learning Rate           | `1.e-4`                                                                                            |
 | `weight_decay` | Weight Decay Coeffcient | `0.1`                                                                                              |
 
-Where **weight decay** (or L2 regularization) is a regularization technique that helps prevent overfitting and 
-**learning rate** is a hyperparameter that determines the step size of the optimization algorithm. 
+Where *weight decay* (or L2 regularization) is a regularization technique that helps prevent overfitting and 
+*learning rate* is a hyperparameter that determines the step size of the optimization algorithm. 
 
 The learning rate scheduler automatically adjusts the learning rate during training. By using the [ReduceLROnPlateau](https://docs.pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.ReduceLROnPlateau.html), we are 
 instructing the scheduler to [`reduce the learning rate only when improvement stagnates`](https://machinelearningmastery.com/a-gentle-introduction-to-learning-rate-schedulers/).
