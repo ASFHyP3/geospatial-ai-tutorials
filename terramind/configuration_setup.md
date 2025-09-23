@@ -24,9 +24,9 @@ default values for the purposes of ASF's foundational model leveraging the Terra
 ### Datamodule
 The field data is expected to receive a [generic datamodule](https://ibm.github.io/terratorch/stable/package/generic_datamodules/) or any other datamodule compatible with [Lightning Datamodules](https://lightning.ai/docs/pytorch/stable/data/datamodule.html), as those defined in TerraMind’s [collection of datamodules](https://ibm.github.io/terratorch/stable/package/datamodules/). The class\_path parameter will inform the rest of the required parameters.
 
-| *Parameter* | *Description* | *Default*                                    |
-| :---- | :---- |:---------------------------------------------|
-| `Class_path` | Datamodule Class (for example, [here](https://ibm.github.io/terratorch/stable/package/generic_datamodules/#terratorch.datamodules.generic_pixel_wise_data_module.GenericNonGeoPixelwiseRegressionDataModule)) | `GenericNonGeoPixelwiseRegressionDataModule` |
+| *Parameter* | *Description* | *Default*                                                                                                                                                                                                             |
+| :---- | :---- |:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Class_path` | Datamodule Class | [`GenericNonGeoPixelwiseRegressionDataModule`](https://ibm.github.io/terratorch/stable/package/generic_datamodules/#terratorch.datamodules.generic_pixel_wise_data_module.GenericNonGeoPixelwiseRegressionDataModule) |
 
 The Terramind datamodule 
 ```
