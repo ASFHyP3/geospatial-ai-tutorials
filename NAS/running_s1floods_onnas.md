@@ -20,7 +20,7 @@ cd /nobackup/$USER
 mkdir terramind && cd terramind
 ```
 ## Prepare input files
-In your `terramind` directory `git clone` this repository, and copy the NAS submission script and the model python script to the current directory:
+In your `terramind` directory, clone this repository (`terramind-docs`) and copy the NAS submission script and the model Python script to the current directory:
 
 ```bash
 git clone https://github.com/ASFHyP3/terramind-docs.git
@@ -39,7 +39,7 @@ You should now be ready to run the model.
 ## Submit your job
 In NAS, we run jobs using the [Portable Batch System (PBS)](https://www.nas.nasa.gov/hecc/support/kb/portable-batch-system-(pbs)-overview_126.html). We submit jobs using the `qsub` command and monitor jobs using the `qstat` command.
 
-You will need to modify the submission script (`terramind_nas_submission_script.sh`) before running a job. Take a look at the submission script by calling `vi terramind_nas_submission_script.sh`. Lines starting with `##` are comments that describe what each set of lines is doing. Read through these. Next move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status. 
+You will need to modify the submission script (`terramind_nas_submission_script.sh`) before running a job. Take a look at the submission script by calling `vi terramind_nas_submission_script.sh`. Lines starting with `# PBS` are configurations for PBS. Lines starting with `##` are comments that describe what each set of lines is doing.  Read through these comments. Next, move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status. 
 
 To submit the training job we specify the queue we want to submit to and the submission script:
 ```bash

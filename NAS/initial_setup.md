@@ -34,4 +34,4 @@ conda config --add pkgs_dirs $CONDA_PKGS
 The first two lines load conda on startup, and the next four change the environment and package install directories to locations on the `/nobackup` drive.
 
 ## 4. HuggingFace settings
-By default, HuggingFace will cache AI models in your home directory, which in NAS has very little storage space. We will need to change this so that it instead caches data in your `/nobackup` directory. Fol
+By default, HuggingFace will cache AI models in your home directory, which in NAS has very little storage space. We will need to change this so that it instead caches data in your `/nobackup` directory. 
