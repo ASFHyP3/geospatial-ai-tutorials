@@ -173,7 +173,6 @@ trainer = pl.Trainer(
     accelerator='auto',
     strategy='auto',
     devices=1,  # Deactivate multi-gpu because it often fails in notebooks
-    precision='16-mixed',  # Speed up training with half precision, delete for full precision training.
     num_nodes=1,
     logger=True,  # Uses TensorBoard by default
     max_epochs=3,  # For demos
@@ -224,4 +223,6 @@ model = terratorch.tasks.SemanticSegmentationTask(
     class_names=['Others', 'Water'],  # optionally define class names
 )
 
-trainer.fit(model, datamodule=datamodule)
+if __name__ == '__main__':
+    trainer.fit(model, datamodule=datamodule)
+    print('done!')
