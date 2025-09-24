@@ -25,6 +25,7 @@ dependencies:
   - segmentation-models-pytorch<=0.4
   - jsonargparse
   - pytest
+  - matplotlib
   - torchgeo>=0.7.0
   - einops
   - timm>=1.0.15

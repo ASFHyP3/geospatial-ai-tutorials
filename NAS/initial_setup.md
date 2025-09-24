@@ -3,10 +3,10 @@
 1. Initial login
 1. Setup SSH pass-through
 1. Setup Conda configuration
+1. Setup HuggingFace configuration
 
 ## 1. Initial login
 On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login to your compute environment of choice. I reccommend the Pleiades Front End (PFE). To set your system password, you'll need to contact NAS user support. [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
-
 
 ## 2. SSH Pass-Through
 NAS is configured to have a front-end login system, the Secure Front End (SFE), that is then used to SSH into the NAS compute resources, such as the PFE. Setting up SSH pass-through allows you to login into compute resources, such as the PFE, in a single step.
@@ -32,3 +32,6 @@ conda config --add envs_dirs $CONDA_INSTALL
 conda config --add pkgs_dirs $CONDA_PKGS
 ```
 The first two lines load conda on startup, and the next four change the environment and package install directories to locations on the `/nobackup` drive.
+
+## 4. HuggingFace settings
+By default, HuggingFace will cache AI models in your home directory, which in NAS has very little storage space. We will need to change this so that it instead caches data in your `/nobackup` directory. 
