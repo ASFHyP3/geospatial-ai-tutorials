@@ -34,8 +34,8 @@ def download_data():
 
 def main() -> None:
     out_dir = DATA_DIR / 'hwds-rasters'
-    pixel_size = 10  # meters
-    padding = 1000   # meters
+    pixel_size_meters = 10
+    padding_meters = 1000
 
     out_dir.mkdir(parents=True, exist_ok=True)
     shp_path = download_data()
@@ -56,33 +56,33 @@ def main() -> None:
         swath_id = row['swathID']
 
         minx, miny, maxx, maxy = geom.bounds
-        minx -= padding
-        miny -= padding
-        maxx += padding
-        maxy += padding
+        minx -= padding_meters
+        miny -= padding_meters
+        maxx += padding_meters
+        maxy += padding_meters
 
-        width = int(np.ceil((maxx - minx) / pixel_size))
-        height = int(np.ceil((maxy - miny) / pixel_size))
+        width = int(np.ceil((maxx - minx) / pixel_size_meters))
+        height = int(np.ceil((maxy - miny) / pixel_size_meters))
 
-        transform = from_origin(minx, maxy, pixel_size, pixel_size)
+        transform = from_origin(minx, maxy, pixel_size_meters, pixel_size_meters)
 
         rasterized = rasterize(
             [(geom, 1)],
             out_shape=(height, width),
             transform=transform,
             fill=0,
-            dtype="uint8"
+            dtype='uint8'
         )
 
-        out_path = out_dir / f"swathID_{swath_id}_swathDate_{row['swathDate']}.tif"
+        out_path = out_dir / f'swathID_{swath_id}_swathDate_{row["swathDate"]}.tif'
 
         with rasterio.open(
-            out_path, "w",
-            driver="GTiff",
+            out_path, 'w',
+            driver='GTiff',
             height=height,
             width=width,
             count=1,
-            dtype="uint8",
+            dtype='uint8',
             crs=gdf.crs,
             transform=transform
         ) as dst:
