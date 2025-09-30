@@ -3,9 +3,9 @@ from pathlib import Path
 import albumentations
 import matplotlib.pyplot as plt
 import terratorch
-from terratorch.datamodules import GenericNonGeoSegmentationDataModule
 
-dataset_path = Path('/Users/jrsmale/projects/fmai/data')
+
+dataset_path = Path('terramind-docs/terramind')
 
 datamodule = terratorch.datamodules.GenericMultiModalDataModule(
     task="segmentation",
@@ -19,20 +19,20 @@ datamodule = terratorch.datamodules.GenericMultiModalDataModule(
 
     # Define data paths as dicts using the modality names as keys.
     train_data_root={
-        "S2L1C": dataset_path,
-        "S1RTC": dataset_path,
+        "S2L1C": dataset_path / 'data/S2L1C',
+        "S1RTC": dataset_path / 'data/S1RTC',
     },
-    train_label_data_root=dataset_path,
+    train_label_data_root=dataset_path / 'data/Label',
     val_data_root={
-        "S2L1C": dataset_path,
-        "S1RTC": dataset_path,
+        "S2L1C": dataset_path / 'data/S2L1C',
+        "S1RTC": dataset_path / 'data/S1RTC',
     },
-    val_label_data_root=dataset_path,
+    val_label_data_root=dataset_path / 'data/Label',
     test_data_root={
-        "S2L1C": dataset_path,
-        "S1RTC": dataset_path,
+        "S2L1C": dataset_path / 'data/S2L1C',
+        "S1RTC": dataset_path / 'data/S1RTC',
     },
-    test_label_data_root=dataset_path,
+    test_label_data_root=dataset_path / 'data/Label',
 
     # Define split files because all samples are saved in the same folder.
     train_split=dataset_path / "splits/train_data.txt",
@@ -95,12 +95,12 @@ val_dataset = datamodule.val_dataset
 len(val_dataset)
 
 # plotting a few samples (The code only plots the defined `rgb_modality`)
-#val_dataset.plot(val_dataset[2])
-#plt.show()
-#val_dataset.plot(val_dataset[8])
-#plt.show()
-#val_dataset.plot(val_dataset[11])
-#plt.show()
+val_dataset.plot(val_dataset[2])
+plt.show()
+val_dataset.plot(val_dataset[8])
+plt.show()
+val_dataset.plot(val_dataset[11])
+plt.show()
 
 # checking datasets testing split size
 datamodule.setup("test")
