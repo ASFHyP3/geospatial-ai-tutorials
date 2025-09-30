@@ -1,4 +1,4 @@
-# type: ignore
+import argparse
 import datetime
 import pathlib
 
@@ -43,12 +43,18 @@ def make_chip_data(raster_name: str, platform: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Process a raster file")
+    parser.add_argument("raster_name", type=str, help="Name of raster file")
+    args = parser.parse_args()
+
+    raster_name = args.raster_name
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     # raster_name = 'swathID_1507_swathDate_2020-07-06.tif'
     # raster_name = 'swathID_638_swathDate_2020-06-04.tif'
     # raster_name = 'swathID_1339_swathDate_2018-05-14.tif'
     # raster_name = 'swathID_97_swathDate_2019-05-17.tif'
-    raster_name = 'swathID_603_swathDate_2017-08-21.tif'
+    # raster_name = 'swathID_603_swathDate_2017-08-21.tif'
 
     platform = 'S1RTC'
 
