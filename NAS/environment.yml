@@ -1,14 +1,17 @@
 name: terramind
 channels:
+  - pytorch
+  - nvidia
   - conda-forge
   - nodefaults
 dependencies:
   - python<3.13
   - pip
   - gdal
-  - pytorch
-  - torchvision
+  - cudatoolkit
+  - pytorch-cuda  # critical: pulls in GPU-enabled runtime
   - pytorch>=2.0
+  - torchvision
   - rioxarray
   - albumentations==1.4.10
   - albucore==0.0.16
@@ -23,9 +26,9 @@ dependencies:
   - mlflow
   - lightning
   - segmentation-models-pytorch<=0.4
-  - jsonargparse
   - pytest
   - matplotlib
+  - tornado
   - torchgeo>=0.7.0
   - einops
   - timm>=1.0.15
@@ -35,6 +38,5 @@ dependencies:
   - python-box
   - wandb
   - termcolor
-  - hdf5plugin
   - h5netcdf
   - pytest-sugar

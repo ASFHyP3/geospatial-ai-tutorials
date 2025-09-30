@@ -2,7 +2,7 @@
 
 Make sure to follow the instructions for [initial setup](inital_setup.md) (particularly the conda setup) before following this tutorial.
 
-NAS does not have an off-the-shelf conda environment that we can use for running TerraMind, so we will need to create our own.
+**Note that the NAS staff has created already created `terramind` conda environment for us. You don't need to follow this setup to use that environment.**
 
 1. Load the terramind `environment.yml` file in this directory into your home PFE directory
 1. Call `conda env create --prefix $CONDA_INSTALL/terramind --file environment.yml` to create the base environment
