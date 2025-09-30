@@ -12,9 +12,14 @@ from terratorch.registry import BACKBONE_REGISTRY
 
 
 warnings.filterwarnings('ignore')
-dataset_path = Path('sen1floods11_v1.1')
 
 print('Starting run...')
+print('CUDA available:', torch.cuda.is_available())
+print('GPU count:', torch.cuda.device_count())
+print('Torch CUDA version:', torch.version.cuda)
+print('Compiled with CUDA:', torch.backends.cudnn.is_available())
+
+dataset_path = Path('sen1floods11_v1.1')
 datamodule = terratorch.datamodules.GenericMultiModalDataModule(
     task='segmentation',
     batch_size=8,
@@ -141,12 +146,12 @@ datamodule.setup('fit')
 
 # checking datasets validation split size
 val_dataset = datamodule.val_dataset
-len(f'Length of validation dataset: {val_dataset}')
+print(f'Length of validation dataset: {len(val_dataset)}')
 
 # checking datasets testing split size
 datamodule.setup('test')
 test_dataset = datamodule.test_dataset
-len(f'Length of test dataset: {val_dataset}')
+print(f'Length of test dataset: {len(val_dataset)}')
 
 # Use the backbone registry to load a PyTorch model for custom pipeline. The pre-trained weights are automatically downloaded with pretrained=True.
 model = BACKBONE_REGISTRY.build(
@@ -172,10 +177,9 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 trainer = pl.Trainer(
     accelerator='auto',
     strategy='auto',
-    devices=1,  # Deactivate multi-gpu because it often fails in notebooks
     num_nodes=1,
     logger=True,  # Uses TensorBoard by default
-    max_epochs=3,  # For demos
+    max_epochs=2,  # For demos
     log_every_n_steps=1,
     callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
     default_root_dir='output/terramind_base_sen1floods11/',
@@ -223,6 +227,6 @@ model = terratorch.tasks.SemanticSegmentationTask(
     class_names=['Others', 'Water'],  # optionally define class names
 )
 
-if __name__ == '__main__':
-    trainer.fit(model, datamodule=datamodule)
-    print('done!')
+print('Starting training...')
+trainer.fit(model, datamodule=datamodule)
+print('Done!')
