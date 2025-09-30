@@ -4,26 +4,9 @@ channels:
   - nodefaults
 dependencies:
   - python>=3.11
-  - pip
-  - gdal
   - numpy
-  - shapely
-  - pyproj
-  - pystac-client
-  - rasterio
-  - zarr>=3
-  - xarray
-  - rioxarray
-  - pandas
-  - geopandas
-  - asf_search
-  - earthaccess
-  - hyp3_sdk
+  - requests
   - tqdm
+  - geopandas
+  - rasterio
   - satchip
-  - matplotlib
-  # For packaging, and testing
-  - setuptools_scm
-  - pytest
-  - pytest-console-scripts
-  - pytest-cov
