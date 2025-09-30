@@ -26,7 +26,7 @@
 #PBS -q gpu_devel@pbspl4
 #PBS -l select=1:model=mil_a100:ncpus=16:ngpus=1:mem=120GB
 #PBS -l place=scatter:excl
-#PBS -l walltime=01:00:00
+#PBS -l walltime=00:30:00
 
 ### Output files
 #PBS -o terramind.out
@@ -40,12 +40,11 @@
 module purge
 module use -a /swbuild/analytix/tools/modulefiles
 module load miniconda3/v4
-export CONDA_INSTALL=/nobackup/ffwillia/conda/envs
-export CONDA_PKGS=/nobackup/ffwillia/conda/pkgs
-conda config --add envs_dirs $CONDA_INSTALL
-conda config --add pkgs_dirs $CONDA_PKGS
 source activate terramind
 
+export HF_HUB_CACHE=/nobackupp27/analytix/hugging_face/hub
+export HF_HUB_OFFLINE=1
+export NO_ALBUMENTATIONS_UPDATE=1
 export PYTHONPATH=$PWD
 export NODE_RANK=$2
 export RDZV_HOST=$(hostname)
@@ -55,7 +54,8 @@ export WANDB_DIR=$PWD/logs/
 
 ## Actual code to be run
 echo "Hello World"
-terratorch fit -c config.yml
+nvidia-smi
+python -u terramind_sen1floods.py
 
 ## Cleanup
 conda deactivate
