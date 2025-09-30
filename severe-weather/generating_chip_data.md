@@ -9,8 +9,8 @@
 All the dependencies for these scripts are in one conda environment, which can be installed and activated with:
 
 ```
-mamba env create -f environment.yml
-mamba activate severe-weather
+conda env create -f environment.yml
+conda activate severe-weather
 ```
 
 ## 2. Make Label Rasters
