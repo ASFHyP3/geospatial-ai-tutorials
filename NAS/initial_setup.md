@@ -15,8 +15,10 @@ NAS is configured to have a front-end login system, the Secure Front End (SFE), 
 
 [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/setting-up-ssh-passthrough_232.html) describes how to setup SSH pass-through once public key authentication is setup.
 
-## 3. Conda settings
-NAS comes with pre-built conda environments that can be used for processing (see the full list [here](https://www.nas.nasa.gov/hecc/support/kb/machine-learning-overview_572.html)). Unfortunately, none of the provided environments fit our needs, so we will need to do some setup to create our own.
+## 3. (Optional) Conda settings
+NAS comes with pre-built conda environments that can be used for processing (see the full list [here](https://www.nas.nasa.gov/hecc/support/kb/machine-learning-overview_572.html)). If none of the provided environments fit your needs, you can install your own environments after some setup.
+
+**Note that the NAS staff has created the `terramind` conda environment for us. You don't need to follow this setup to use that environment.**
 
 This involves:
 1. Pre-loading conda on startup
@@ -32,6 +34,3 @@ conda config --add envs_dirs $CONDA_INSTALL
 conda config --add pkgs_dirs $CONDA_PKGS
 ```
 The first two lines load conda on startup, and the next four change the environment and package install directories to locations on the `/nobackup` drive.
-
-## 4. HuggingFace settings
-By default, HuggingFace will cache AI models in your home directory, which in NAS has very little storage space. We will need to change this so that it instead caches data in your `/nobackup` directory. 
