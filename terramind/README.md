@@ -3,6 +3,7 @@ This document will walk you through the steps to work with TerraMind in Terrator
 
 ### Loading in Satchips
 When downloading data, make sure to download in the following structure: 
+
     terrmind    
     ├──data
     │   ├── S2L1C
