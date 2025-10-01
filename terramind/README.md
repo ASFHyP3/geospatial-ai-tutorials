@@ -6,8 +6,8 @@ When downloading data, make sure to download in the following structure:
 
     terrmind    
     ├──data
-    │   ├── S2L1C
-    │   │   └── *_S2L1C.zarr.zip files
+    │   ├── S2L2A
+    │   │   └── *_S2L2A.zarr.zip files
     │   ├── S1RTC
     │   │   └── *_S1RTC.zarr.zip files
     │   └── Label
