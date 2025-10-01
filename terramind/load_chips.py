@@ -4,7 +4,7 @@ import albumentations
 import matplotlib.pyplot as plt
 import terratorch
 
-dataset_path = Path('')
+dataset_path = Path('terramind')
 
 datamodule = terratorch.datamodules.GenericMultiModalDataModule(
     task="segmentation",
@@ -92,15 +92,6 @@ datamodule.setup("fit")
 
 val_dataset = datamodule.val_dataset
 len(val_dataset)
-print(val_dataset)
-
-# plotting a few samples (The code only plots the defined `rgb_modality`)
-val_dataset.plot(val_dataset[0])
-plt.show()
-val_dataset.plot(val_dataset[8])
-plt.show()
-val_dataset.plot(val_dataset[11])
-plt.show()
 
 # checking datasets testing split size
 datamodule.setup("test")
