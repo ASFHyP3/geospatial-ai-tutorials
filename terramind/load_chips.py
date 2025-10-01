@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import albumentations
-import matplotlib.pyplot as plt
 import terratorch
 
 dataset_path = Path('terramind')
