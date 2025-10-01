@@ -41,7 +41,7 @@ datamodule = terratorch.datamodules.GenericMultiModalDataModule(
     # Define suffix, again using dicts.
     img_grep={
         "S2L2A": "*_S2L2A.zarr.zip",
-        "S1GRD": "*_S1RTC.zarr.zip",
+        "S1RTC": "*_S1RTC.zarr.zip",
     },
     label_grep="*_Label.zarr.zip",
 
