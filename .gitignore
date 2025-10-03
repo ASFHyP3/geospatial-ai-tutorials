@@ -1,3 +1,4 @@
 data
 *.tif
 .ipynb_checkpoints
+output

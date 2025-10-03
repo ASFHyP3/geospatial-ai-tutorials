@@ -4,7 +4,7 @@ import albumentations
 import matplotlib.pyplot as plt
 from terratorch import datamodules
 
-dataset_path = Path('data')
+dataset_path = Path("data")
 
 datamodule = datamodules.GenericMultiModalDataModule(
     task="segmentation",
