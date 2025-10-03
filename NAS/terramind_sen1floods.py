@@ -27,7 +27,6 @@ datamodule = terratorch.datamodules.GenericMultiModalDataModule(
     num_classes=2,
     # Define your input modalities. The names must match the keys in the following dicts.
     modalities=['S2L1C', 'S1GRD'],
-    image_modalities=['S2L1C', 'S1GRD'],
     rgb_modality='S2L1C',  # Used for plotting. Defaults to the first modality if not provided.
     rgb_indices=[3, 2, 1],  # RGB channel positions in the rgb_modality.
     # Define data paths as dicts using the modality names as keys.
