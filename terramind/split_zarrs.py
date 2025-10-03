@@ -10,35 +10,35 @@ def get_zarr_paths_from(data_dir: pathlib.Path) -> list[pathlib.Path]:
 
 
 def split_zarr(zarr_path: pathlib.Path) -> None:
-    zarr_name = zarr_path.name.split('.zarr.zip')[0]
+    zarr_name = zarr_path.name.split(".zarr.zip")[0]
     store = zarr.storage.ZipStore(zarr_path, read_only=True)
     ds = xr.open_zarr(store, mask_and_scale=True)
-    print(f'Splitting: {zarr_path}')
+    print(f"Splitting: {zarr_path}")
     for f in tqdm(ds.sample):
         sample = ds.sel(sample=f)
 
-        for t in sample['time']:
+        for t in sample["time"]:
             sample_t = sample.sel(time=t)
             sample_sum = sample_t.sum()
-            is_data = 'data' in sample_sum
+            is_data = "data" in sample_sum
 
             if is_data and sample_t.sum().data == 0:
                 continue
 
-            to_save = sample_t.drop_vars(['time', 'sample'])
+            to_save = sample_t.drop_vars(["time", "sample"])
 
             if is_data:
-                save_data = to_save['data'].squeeze()
+                save_data = to_save["data"].squeeze()
             else:
-                save_data = to_save['bands']
+                save_data = to_save["bands"]
 
-            sample_name = sample_t['sample'].data
-            out_path = zarr_path.parent / f'{sample_name}_{zarr_name}.tif'
+            sample_name = sample_t["sample"].data
+            out_path = zarr_path.parent / f"{sample_name}_{zarr_name}.tif"
             save_data.rio.to_raster(out_path)
 
 
-if __name__ == '__main__':
-    data_dir = pathlib.Path('data')
+if __name__ == "__main__":
+    data_dir = pathlib.Path("data")
     zarr_paths = get_zarr_paths_from(data_dir)
 
     for zarr_path in zarr_paths:

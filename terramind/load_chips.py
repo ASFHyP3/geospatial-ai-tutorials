@@ -83,7 +83,6 @@ datamodule = datamodules.GenericMultiModalDataModule(
     ],
     val_transform=None,  # Using ToTensorV2() by default if not provided
     test_transform=None,
-
     no_label_replace=-1,  # Replace NaN labels. defaults to -1 which is ignored in the loss and metrics.
     no_data_replace=0,  # Replace NaN data
 )
