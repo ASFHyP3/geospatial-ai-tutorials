@@ -27,34 +27,18 @@ class MultimodalNormalize(Callable):
             if m not in batch["image"]:
                 continue
             image = batch["image"][m]
-            if len(image.shape) == 5:
-                # B, C, T, H, W
-                means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1, 1)
-                stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1, 1)
-            elif len(image.shape) == 4:
+            if len(image.shape) == 4:
                 # B, C, H, W
                 means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1)
                 stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1)
-            elif len(self.means[m]) == 1:
-                # B, (T,) H, W
+            elif len(image.shape) == 2 or len(image.shape) == 1:
                 means = torch.tensor(self.means[m], device=image.device)
                 stds = torch.tensor(self.stds[m], device=image.device)
-            elif len(image.shape) == 3:  # No batch dim
-                # C, H, W
-                means = torch.tensor(self.means[m], device=image.device).view(-1, 1, 1)
-                stds = torch.tensor(self.stds[m], device=image.device).view(-1, 1, 1)
-
-            elif len(image.shape) == 2:
-                means = torch.tensor(self.means[m], device=image.device)
-                stds = torch.tensor(self.stds[m], device=image.device)
-
-            elif len(image.shape) == 1:
-                means = torch.tensor(self.means[m], device=image.device)
-                stds = torch.tensor(self.stds[m], device=image.device)
-
             else:
-                msg = (f"Expected batch with 5 or 4 dimensions (B, C, (T,) H, W), sample with 3 dimensions (C, H, W) "
-                       f"or a single channel, but got {len(image.shape)}")
+                msg = (
+                    f"Expected batch with 4 dimensions (B, C, H, W), sample with 2 dimensions (H, W) "
+                    f"or a single channel, but got {len(image.shape)}"
+                )
                 raise Exception(msg)
 
             batch["image"][m] = (image - means) / stds
@@ -67,6 +51,7 @@ class MultimodalNormalize(Callable):
 class SatChipDataset(NonGeoDataset):
     def __init__(self, label_path, s2_path, rtc_path, transforms=None, split='train'):
         self.transforms = transforms
+        self.slice_range = slice(3, 259)
 
         label_ds = _load_ds(label_path)
         s2_ds = _load_ds(s2_path)
@@ -110,36 +95,31 @@ class SatChipDataset(NonGeoDataset):
         return len(self.label_ds.sample)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        slice_range = slice(3, 259)
-
-        sample_data = self.label_ds.isel(sample=index, x=slice_range, y=slice_range).squeeze()
-        sample_array = sample_data.bands.data
-        sample_id = str(sample_data.sample.data)
-
-        rtc_data = self.rtc_ds.sel(sample=sample_id).isel(x=slice_range, y=slice_range).squeeze()
-        rtc_data = self._drop_empty_time_slices(rtc_data)
-        rtc_array = rtc_data.squeeze().data.data
-
-        s2_data = self.s2_ds.sel(sample=sample_id).isel(x=slice_range, y=slice_range).squeeze()
-        s2_data = self._drop_empty_time_slices(s2_data)
-        s2_array = s2_data.squeeze().data.data
-
-        rtc_array = np.transpose(rtc_array, (1, 2, 0))
-        s2_array = np.transpose(s2_array, (1, 2, 0))
-
         if not self.transforms:
             self.transforms = ToTensorV2()
 
+        sample_data = self.label_ds.isel(sample=index, x=self.slice_range, y=self.slice_range).squeeze()
+        sample_array = sample_data.bands.data
+        sample_id = str(sample_data.sample.data)
+
         image_output = {
-            "S2L2A": self.transforms(image=s2_array)['image'],
-            "S1RTC": self.transforms(image=rtc_array)['image'],
+            "S2L2A": self._get_image_array(sample_id, self.s2_ds),
+            "S1RTC": self._get_image_array(sample_id, self.rtc_ds),
         }
 
         mask_output = self.transforms(image=sample_array)['image'][0]
-
         output = {'mask': mask_output, 'image': image_output}
 
         return output
+
+    def _get_image_array(self, sample_id, ds):
+        data = ds.sel(sample=sample_id).isel(x=self.slice_range, y=self.slice_range).squeeze()
+        data = self._drop_empty_time_slices(data)
+        array = data.squeeze().data.data
+
+        array = np.transpose(array, (1, 2, 0))
+
+        return self.transforms(image=array)['image']
 
 
     def _drop_empty_time_slices(self, ds: xr.Dataset) -> xr.Dataset:
