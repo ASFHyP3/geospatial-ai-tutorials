@@ -4,6 +4,7 @@ from typing import Any
 
 from albumentations.pytorch import ToTensorV2
 import kornia.augmentation as K
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import xarray as xr
@@ -83,8 +84,27 @@ class SatChipDataset(NonGeoDataset):
         self.label_ds = label_ds.isel(sample=split_slice)
         samples = self.label_ds.sample
 
-        self.s2_ds = s2_ds.sel(sample=samples).reindex(sample=samples)
-        self.rtc_ds = rtc_ds.sel(sample=samples).reindex(sample=samples)
+        # TODO: enforce this in satchip as well
+        band_order = [
+            'COASTAL',
+            'BLUE',
+            'GREEN',
+            'RED',
+            'REDEDGE1',
+            'REDEDGE2',
+            'REDEDGE3',
+            'NIR',
+            'NIR08',
+            'NIR09',
+            'SWIR16',
+            'SWIR22',
+        ]
+
+        # self.s2_ds = s2_ds.isel(sample=split_slice).reindex(band=band_order)
+        # self.rtc_ds = rtc_ds.isel(sample=split_slice).reindex(band=['VV', 'VH'])
+
+        self.s2_ds = s2_ds.sel(sample=samples).reindex(sample=samples, band=band_order)
+        self.rtc_ds = rtc_ds.sel(sample=samples).reindex(sample=samples, band=['VV', 'VH'])
 
     def __len__(self):
         return len(self.label_ds.sample)
@@ -131,8 +151,45 @@ class SatChipDataset(NonGeoDataset):
 
         return ds.isel(time=idx)
 
-    def plot(self) -> Figure:
-        raise NotImplementedError
+    def normalize_image_array(self, input_array: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
+        """Function to normalize array values to a byte value between 0 and 255
+
+        Args:
+            input_array: The array to normalize.
+            vmin: The minimum value to normalize to (mapped to 0).
+            vmax: The maximum value to normalize to (mapped to 255).
+
+        Returns:
+            The normalized array.
+        """
+        input_array = input_array.astype(float)
+        scaled_array = (input_array - vmin) / (vmax - vmin)
+        scaled_array[np.isnan(input_array)] = 0
+        normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
+        return normalized_array
+
+    def plot(self, sample: dict[str, Any], suptitle: str | None = None) -> Figure:
+        mask = sample['mask']
+        vv = self.normalize_image_array(np.sqrt(sample['image'][:, :, 0]), 0.14, 0.52)
+        vh = self.normalize_image_array(np.sqrt(sample['image'][:, :, 1]), 0.05, 0.259)
+        red = self.normalize_image_array(sample['image'][:, :, 5], 0, 3000)
+        green = self.normalize_image_array(sample['image'][:, :, 4], 0, 3000)
+        blue = self.normalize_image_array(sample['image'][:, :, 3], 0, 3000)
+        rtc = np.stack([vv, vh, vv], axis=-1)
+        rgb = np.stack([red, green, blue], axis=-1)
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 5), layout='compressed')
+        ax1.imshow(mask, cmap='gray')
+        ax1.set_title('Labels')
+        ax1.axis('off')
+        ax2.imshow(rtc, cmap='gray')
+        ax2.set_title('Sentinel-1 RTC')
+        ax2.axis('off')
+        ax3.imshow(rgb)
+        ax3.set_title('Sentinel-2 RGB')
+        ax3.axis('off')
+        if suptitle is not None:
+            plt.suptitle(suptitle)
+        return fig
 
 
 def _load_ds(dataset_path: str | Path) -> xr.Dataset:
@@ -160,19 +217,19 @@ class SatChipDataModule(NonGeoDataModule):
         1857.648,
     ]
     s2l2a_std = [
-            2106.761,
-            2141.107,
-            2038.973,
-            2134.138,
-            2085.321,
-            1889.926,
-            1820.257,
-            1871.918,
-            1753.829,
-            1797.379,
-            1434.261,
-            1334.311,
-        ]
+        2106.761,
+        2141.107,
+        2038.973,
+        2134.138,
+        2085.321,
+        1889.926,
+        1820.257,
+        1871.918,
+        1753.829,
+        1797.379,
+        1434.261,
+        1334.311,
+    ]
 
     def __init__(self, batch_size: int = 8, num_workers: int = 0, **kwargs: Any) -> None:
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
@@ -223,6 +280,9 @@ if __name__ == '__main__':
     print(len(sc_dataset))
     data = sc_dataset[0]
     print(data)
+    data = sc_dataset[10]
+    f = sc_dataset.plot(data, suptitle='Sample 10')
+    plt.show()
     # Testing module
     test_module = SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
     test_module.setup('fit')
