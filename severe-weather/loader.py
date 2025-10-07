@@ -2,6 +2,7 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
+import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import kornia.augmentation as K
 import matplotlib.pyplot as plt
@@ -45,8 +46,6 @@ class MultimodalNormalize(Callable):
         return batch
 
 
-
-
 # https://torchgeo.readthedocs.io/en/latest/tutorials/contribute_non_geo_dataset.html
 class SatChipDataset(NonGeoDataset):
     def __init__(self, label_path, s2_path, rtc_path, transforms=None, split='train'):
@@ -56,18 +55,6 @@ class SatChipDataset(NonGeoDataset):
         label_ds = _load_ds(label_path)
         s2_ds = _load_ds(s2_path)
         rtc_ds = _load_ds(rtc_path)
-
-        n = len(label_ds.sample)
-        train_end = int(0.8 * n)
-        if split == 'train':
-            split_slice = slice(0, train_end)
-        elif split == 'test':
-            split_slice = slice(train_end, n)
-        else:
-            raise ValueError(f'Invalid split: {split}')
-
-        self.label_ds = label_ds.isel(sample=split_slice)
-        samples = self.label_ds.sample
 
         # TODO: enforce this in satchip as well
         band_order = [
@@ -85,8 +72,8 @@ class SatChipDataset(NonGeoDataset):
             'SWIR22',
         ]
 
-        # self.s2_ds = s2_ds.isel(sample=split_slice).reindex(band=band_order)
-        # self.rtc_ds = rtc_ds.isel(sample=split_slice).reindex(band=['VV', 'VH'])
+        self.label_ds = label_ds
+        samples = self.label_ds.sample
 
         self.s2_ds = s2_ds.sel(sample=samples).reindex(sample=samples, band=band_order)
         self.rtc_ds = rtc_ds.sel(sample=samples).reindex(sample=samples, band=['VV', 'VH'])
@@ -224,6 +211,10 @@ class SatChipDataModule(NonGeoDataModule):
             'S1RTC': torch.Tensor(self.s1rtc_std),
             'S2L2A': torch.Tensor(self.s2l2a_std)
         }
+        self.training_transforms = A.Compose([
+            A.D4(),
+            ToTensorV2()
+        ])
 
         self.aug = MultimodalNormalize(means, stds)
 
@@ -242,10 +233,10 @@ class SatChipDataModule(NonGeoDataModule):
         """
         assert stage in ['fit', 'validate', 'test']
         if stage in ['fit', 'validate']:
-            dataset = SatChipDataset(split='train', **self.kwargs)
+            dataset = SatChipDataset(split='train', transforms=self.training_transforms, **self.kwargs)
             train_indices, val_indices = group_shuffle_split(range(len(dataset)), test_size=0.2, random_state=0)
-            self.train_dataset = Subset(dataset, train_indices).dataset
-            self.val_dataset = Subset(dataset, val_indices).dataset
+            self.train_dataset = Subset(dataset, train_indices)
+            self.val_dataset = Subset(dataset, val_indices)
         if stage in ['test']:
             self.test_dataset = SatChipDataset(split='test', **self.kwargs)
 
