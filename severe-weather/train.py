@@ -20,7 +20,7 @@ rtc_path = data_path / 'swathID_1507_swathDate_2020-07-06_S1RTC.zarr.zip'
 s2_path = data_path / 'swathID_1507_swathDate_2020-07-06_S2L2A.zarr.zip'
 label_path = data_path / 'swathID_1507_swathDate_2020-07-06.zarr.zip'
 
-datamodule = loader.SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
+datamodule = loader.SatChipDataModule(batch_size=8, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
 print(datamodule)
 # Setup train and val datasets
 datamodule.setup('fit')
@@ -32,7 +32,7 @@ print(f'Length of validation dataset: {len(val_dataset)}')
 # checking datasets testing split size
 datamodule.setup('test')
 test_dataset = datamodule.test_dataset
-print(f'Length of test dataset: {len(val_dataset)}')
+print(f'Length of test dataset: {len(test_dataset)}')
 
 # Use the backbone registry to load a PyTorch model for custom pipeline. The pre-trained weights are automatically downloaded with pretrained=True.
 model = BACKBONE_REGISTRY.build(
@@ -73,7 +73,7 @@ model = terratorch.tasks.SemanticSegmentationTask(
         # TerraMind backbone
         'backbone': 'terramind_v1_base',  # large version: terramind_v1_large
         'backbone_pretrained': True,
-        'backbone_modalities': ["S2L2A", "S1RTC"],
+        'backbone_modalities': ['S2L2A', 'S1RTC'],
         # Optionally, define the input bands. This is only needed if you select a subset of the pre-training bands, as explained above.
         # "backbone_bands": {"S1GRD": ["VV"]},
         # Necks

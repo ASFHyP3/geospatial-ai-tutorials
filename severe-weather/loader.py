@@ -4,7 +4,6 @@ from typing import Any
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
