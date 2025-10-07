@@ -49,7 +49,11 @@ class MultimodalNormalize(Callable):
 # https://torchgeo.readthedocs.io/en/latest/tutorials/contribute_non_geo_dataset.html
 class SatChipDataset(NonGeoDataset):
     def __init__(self, label_path, s2_path, rtc_path, transforms=None, split='train'):
-        self.transforms = transforms
+        if not transforms:
+            self.transforms = ToTensorV2()
+        else:
+            self.transforms = transforms
+
         self.slice_range = slice(3, 259)
 
         label_ds = _load_ds(label_path)
@@ -82,9 +86,6 @@ class SatChipDataset(NonGeoDataset):
         return len(self.label_ds.sample)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        if not self.transforms:
-            self.transforms = ToTensorV2()
-
         sample_data = self.label_ds.isel(sample=index, x=self.slice_range, y=self.slice_range).squeeze()
         sample_array = sample_data.bands.data
         sample_id = str(sample_data.sample.data)
@@ -107,7 +108,6 @@ class SatChipDataset(NonGeoDataset):
         array = np.transpose(array, (1, 2, 0))
 
         return self.transforms(image=array)['image']
-
 
     def _drop_empty_time_slices(self, ds: xr.Dataset) -> xr.Dataset:
         non_zero_count = ds.isel(band=0).where(ds.isel(band=0) != 0).count(dim=('x', 'y')).data.data
@@ -200,8 +200,6 @@ class SatChipDataModule(NonGeoDataModule):
 
     def __init__(self, batch_size: int = 8, num_workers: int = 0, **kwargs: Any) -> None:
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
-        # you can specify a series of Kornia augmentations that will be
-        # applied to a batch of training data in `on_after_batch_transfer` in the NonGeoDataModule base class
         means = {
             'S1RTC': torch.Tensor(self.s1rtc_mean),
             'S2L2A': torch.Tensor(self.s2l2a_mean)
@@ -211,15 +209,16 @@ class SatChipDataModule(NonGeoDataModule):
             'S1RTC': torch.Tensor(self.s1rtc_std),
             'S2L2A': torch.Tensor(self.s2l2a_std)
         }
+
         self.training_transforms = A.Compose([
             A.D4(),
             ToTensorV2()
         ])
 
-        self.aug = MultimodalNormalize(means, stds)
-
         # you can also define specific augmentations for other experiment phases, if not specified
         # self.aug Augmentations will be applied
+        self.aug = MultimodalNormalize(means, stds)
+
         self.size = 256
 
     # setup defines how the dataset should be split
