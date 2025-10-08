@@ -61,8 +61,6 @@ class MultimodalNormalize(Callable):
         return batch
 
 
-
-
 # https://torchgeo.readthedocs.io/en/latest/tutorials/contribute_non_geo_dataset.html
 class SatChipDataset(NonGeoDataset):
     def __init__(self, label_path, s2_path, rtc_path, transforms=None, split='train'):
