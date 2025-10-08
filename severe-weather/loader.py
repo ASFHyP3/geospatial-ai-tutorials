@@ -136,11 +136,14 @@ class SatChipDataset(NonGeoDataset):
 
     def plot(self, sample: dict[str, Any], suptitle: str | None = None) -> Figure:
         mask = sample['mask']
-        vv = self.normalize_image_array(np.sqrt(sample['image'][:, :, 0]), 0.14, 0.52)
-        vh = self.normalize_image_array(np.sqrt(sample['image'][:, :, 1]), 0.05, 0.259)
-        red = self.normalize_image_array(sample['image'][:, :, 5], 0, 3000)
-        green = self.normalize_image_array(sample['image'][:, :, 4], 0, 3000)
-        blue = self.normalize_image_array(sample['image'][:, :, 3], 0, 3000)
+
+        vv = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[:, :, 0]), 0.14, 0.52)
+        vh = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[:, :, 1]), 0.05, 0.259)
+
+        red = self.normalize_image_array(sample['image']['S2L2A'].numpy()[:, :, 5], 0, 3000)
+        green = self.normalize_image_array(sample['image']['S2L2A'].numpy()[:, :, 4], 0, 3000)
+        blue = self.normalize_image_array(sample['image']['S2L2A'].numpy()[:, :, 3], 0, 3000)
+
         rtc = np.stack([vv, vh, vv], axis=-1)
         rgb = np.stack([red, green, blue], axis=-1)
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 5), layout='compressed')
