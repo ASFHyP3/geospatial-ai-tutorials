@@ -143,7 +143,6 @@ class SatChipDataset(NonGeoDataset):
         red = self.normalize_image_array(sample['image']['S2L2A'].numpy()[3, :, :], 0, 3000)
         green = self.normalize_image_array(sample['image']['S2L2A'].numpy()[2, :, :], 0, 3000)
         blue = self.normalize_image_array(sample['image']['S2L2A'].numpy()[1, :, :], 0, 3000)
-        breakpoint()
 
         rtc = np.stack([vv, vh, vv], axis=-1)
         rgb = np.stack([red, green, blue], axis=-1)
