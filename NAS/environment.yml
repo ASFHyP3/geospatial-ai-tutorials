@@ -12,6 +12,8 @@ dependencies:
   - pytorch-cuda  # critical: pulls in GPU-enabled runtime
   - pytorch>=2.0
   - torchvision
+  - zarr
+  - xarray
   - rioxarray
   - albumentations==1.4.10
   - albucore==0.0.16
