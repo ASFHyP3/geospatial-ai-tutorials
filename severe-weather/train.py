@@ -21,18 +21,13 @@ s2_path = data_path / 'swathID_1507_swathDate_2020-07-06_S2L2A.zarr.zip'
 label_path = data_path / 'swathID_1507_swathDate_2020-07-06.zarr.zip'
 
 datamodule = loader.SatChipDataModule(batch_size=8, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
-print(datamodule)
+
 # Setup train and val datasets
 datamodule.setup('fit')
 
 # checking datasets validation split size
 val_dataset = datamodule.val_dataset
 print(f'Length of validation dataset: {len(val_dataset)}')
-
-# checking datasets testing split size
-datamodule.setup('test')
-test_dataset = datamodule.test_dataset
-print(f'Length of test dataset: {len(test_dataset)}')
 
 # Use the backbone registry to load a PyTorch model for custom pipeline. The pre-trained weights are automatically downloaded with pretrained=True.
 model = BACKBONE_REGISTRY.build(
@@ -42,7 +37,6 @@ model = BACKBONE_REGISTRY.build(
 )
 
 print(model)
-
 pl.seed_everything(64)
 
 # By default, TerraTorch saves the model with the best validation loss. You can overwrite this by defining a custom ModelCheckpoint, e.g., saving the model with the highest validation mIoU.
@@ -108,7 +102,6 @@ model = terratorch.tasks.SemanticSegmentationTask(
     class_names=['no-damage', 'damage'],  # optionally define class names
 )
 
-print(model)
 print('Starting training...')
 trainer.fit(model, datamodule=datamodule)
 print('Done!')
