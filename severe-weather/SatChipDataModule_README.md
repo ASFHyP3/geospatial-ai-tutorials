@@ -29,14 +29,11 @@ Attributes:
 ```
 
 ### Setup
-After downloading this repository, create a new conda environment with the latest version of TerraTorch.
+If working on NAS for the first time, check out [this documentation](NAS/initial_setup.md) outlining setting up your NAS environment for the first time. On NAS, the pre-created `terramind` conda environment can be activated with
 ```
-conda env create -f severe-weather/environment.yml
-conda activate severe-weather
-python pip install torchgeo
+conda activate terramind
 ```
-You can verify this setup with `torchgeo --help`. 
-
+You can verify your environment is correctly setup with `torchgeo --help`. 
 
 ### Data loader
 Using the `SatChipDataModule` function, you can initialize the dataset by providing Path object paths to the labeled, S2L2A and S1RTC data.
