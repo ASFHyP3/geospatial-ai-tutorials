@@ -1,5 +1,9 @@
 # Working with SatChip Datasets
 SatChip datasets are non-geospatial TorchGeo datasets specialized for satellite imagery. 
+SatChip is built with [TorchGeo](https://github.com/torchgeo/torchgeo?tab=readme-ov-file) 
+In this tutorial, we will discuss the organization of SatChip data, the SatChip Dataset and DataModule, and run a tutorial example with pre-staged data. 
+
+
 
 ### Dataset organization
 The data are in `zarr` format and prepared using [SatChip](https://github.com/forrestfwilliams/satchip), a Python package for preparing satellite images for TorchGeo. Currently supported datasets include: 
@@ -28,7 +32,8 @@ Attributes:
     bounds:           [-103.24111, 44.39625, -101.30495, 45.58643]
 ```
 
-Pre-staged data are available in Google Drive for the purposes of this tutorial. You can download them in the terminal command line with the following commands. 
+Pre-staged data are available in Google Drive for the purposes of this tutorial. These data includes a Labeled hail damage, S1RTC, and S2L2A data from June 4, 2020.  
+You can download them in the terminal command line with the following commands. 
 ```
 mkdir data
 cd data
@@ -37,7 +42,21 @@ curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-g
 curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
 cd ..
 ```
-This data includes a Labeled, S1RTC, and S2L2A data from June 4, 2020.  
+
+### Data loader
+TorchGeo uses [dataset classes](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#geospatial-datasets) 
+* SatChip inherits a NonGeoDataSet base class. 
+* SatChip dataset class is specific for prepared SatChip data
+* The data accesses, reads, and transforms the individual senses
+* Datasets will by loaded by the Dataloader
+* The SatChip Dataset and DataModule code is in a [`loader.py`](loader.py).
+* The [DataModule class](https://torchgeo.readthedocs.io/en/stable/api/datamodules.html)
+* DataModule organizes the DataSets and corresponding PyTorch dataloaders into a complete training set
+* DataModule, along with the Trainer object, automate the data pipeline
+Using the `SatChipDataModule` function, you can initialize the dataset by providing Path object paths to the labeled, S2L2A and S1RTC data.
+```
+SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
+```
 
 ### Setup
 If working on NAS for the first time, check out [this documentation](NAS/initial_setup.md) outlining setting up your NAS environment for the first time. On NAS, the pre-created `terramind` conda environment can be activated with
@@ -46,11 +65,9 @@ conda activate terramind
 ```
 You can verify your environment is correctly setup with `torchgeo --help`.
 
-### Data loader
-Using the `SatChipDataModule` function, you can initialize the dataset by providing Path object paths to the labeled, S2L2A and S1RTC data.
-```
-SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
-```
 
-For a tutorial of using this data module with TerraTorch, check out this [notebook](severe-weather-train-example.ipynb). 
-
+### Example Tutorial
+* We can will run through using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section
+* Run the following command
+* Submit the QSub command and submit to the PBS service
+* Wait for the outputs that there is an exit code. Check the ER file. 
