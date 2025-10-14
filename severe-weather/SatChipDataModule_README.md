@@ -28,7 +28,7 @@ Attributes:
     satchip_version:  0.3.0
     bounds:           [-103.24111, 44.39625, -101.30495, 45.58643]
 ```
-Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data includes a Labeled hail damage, S1RTC, and S2L2A data from June 4, 2020.  
+Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data include a Labeled hail damage, S1RTC, and S2L2A data from June 4, 2020.  
 You can download them in the terminal command line with the following commands.
 ```bash
 mkdir data
