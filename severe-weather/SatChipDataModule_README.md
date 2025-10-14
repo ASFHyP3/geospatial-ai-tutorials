@@ -1,5 +1,5 @@
 # Working with SatChip Datasets
-SatChip datasets are non-geospatial [TorchGeo](https://github.com/torchgeo/torchgeo?tab=readme-ov-file) datasets specialized for satellite imagery.
+SatChip datasets are pre-chipped [TorchGeo](https://github.com/torchgeo/torchgeo?tab=readme-ov-file) datasets specialized for satellite imagery.
 In this tutorial, we will discuss the organization of SatChip data, the SatChip Dataset and DataModule, and run a tutorial example with pre-staged data.
 
 ### Dataset organization
