@@ -56,7 +56,7 @@ We recommend using the [`TerraMind`](https://huggingface.co/ibm-esa-geospatial/T
 ### Setup
 If working on NAS for the first time, check out [this documentation](NAS/initial_setup.md) outlining setting up your NAS environment for the first time. On NAS, the pre-created `terramind` conda environment can be activated with
 ```
-conda activate terramind
+source activate terramind
 ```
 You can verify your environment is correctly setup with `torchgeo --help`.
 
