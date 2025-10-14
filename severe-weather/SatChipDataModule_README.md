@@ -8,7 +8,7 @@ The data are in `zarr` format and prepared using [SatChip](https://github.com/fo
 * HLS: Harmonized Landsat Sentinel-2 data sourced from [LP DAAC's Data Archive](https://www.earthdata.nasa.gov/data/projects/hls)
 * S1RTC: Sentinel-1 Radiometric Terrain Corrected (RTC) data created using [ASF's HyP3 on-demand platform](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
 
-SatChip prepares data labels and satellite images into 264x264 image arrays that follow the TerraMind extension of the MajorTom specification. These files are saved them as `zarr.zip` files and can be loaded in Python with `satchip.utils.load_chip()`. [Here](generating_chip_data.md) is a tutorial on generating your own chip data. 
+SatChip prepares data labels and satellite images into 264x264 image arrays that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files.  [Here](generating_chip_data.md) is a tutorial on generating your own chip data. 
 
 Below is an example of metadata associated with the Sentinel-1 RTC chip `swathID_638_swathDate_2020-06-04`: 
 ```
@@ -38,6 +38,11 @@ curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-g
 curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
 cd ..
 ```
+You can load the data in Python using `satchip.util.load_chip`, as demonstrated with the following code snippet.
+```python
+from satchip import utils
+utils.load_chip('data/swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip')
+```
 
 ### Data loader
 TorchGeo uses [dataset classes](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#geospatial-datasets) to handle geospatial and non-geospatial data. A `DataSet`stores the data and their corresponding labels, while the `DataModule` wraps around the `DataSet` to access and transform and the `DataLoader` to batch and shuffle the data. The `DataModule` is then utilized by the Pytorch `Trainer` object to train the model. 
@@ -62,13 +67,23 @@ You can verify your environment is correctly setup with `torchgeo --help`.
 
 
 ### Example Tutorial
-We will run a trial training using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section. In NAS, we run jobs using the [Portable Batch System (PBS)](https://www.nas.nasa.gov/hecc/support/kb/portable-batch-system-(pbs)-overview_126.html). We submit jobs using the `qsub` command and monitor jobs using the `qstat` command.
+We will run a trial training using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section. If you have not already, run the following command to download the data. 
+```bash
+mkdir data
+cd data
+curl -L "https://drive.usercontent.google.com/download?id={1XgwNgIdAJRvr4sk7K9J_vkxQu2DukFrn}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip
+curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-gAvk2vXxVpJh2}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip
+curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
+cd ..
+```
 
-You will need to modify the submission script (`severe_weather_nas_submission_script.sh`) before running a job. Take a look at the submission script by calling `vi severe_weather_nas_submission_script.sh`. Lines starting with `# PBS` are configurations for PBS. Lines starting with `##` are comments that describe what each set of lines is doing.  Read through these comments. Next, move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status. 
+In NAS, we run jobs using the [Portable Batch System (PBS)](https://www.nas.nasa.gov/hecc/support/kb/portable-batch-system-(pbs)-overview_126.html). We submit jobs using the `qsub` command and monitor jobs using the `qstat` command.
+
+You will need to modify the submission script (`run_severe_weather_segmentation.sh`) before running a job. Take a look at the submission script by calling `vi run_severe_weather_segmentation.sh`. Lines starting with `# PBS` are configurations for PBS. Lines starting with `##` are comments that describe what each set of lines is doing.  Read through these comments. Next, move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status. 
 
 You can submit the trail training with the QSub command and submit to the PBS service
 ```bash
-qsub -q gpu_devel severe_weather_nas_submission_script.sh
+qsub -q gpu_devel run_severe_weather_segmentation.sh
 ```
 This command will print your job ID to the screen. Save the first set of digits somewhere safe - you will need them to query the status of your job.
 
