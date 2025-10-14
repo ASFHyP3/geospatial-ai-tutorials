@@ -2,8 +2,8 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
+import albumentations as A
 from albumentations.pytorch import ToTensorV2
-import kornia.augmentation as K
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -27,34 +27,18 @@ class MultimodalNormalize(Callable):
             if m not in batch["image"]:
                 continue
             image = batch["image"][m]
-            if len(image.shape) == 5:
-                # B, C, T, H, W
-                means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1, 1)
-                stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1, 1)
-            elif len(image.shape) == 4:
+            if len(image.shape) == 4:
                 # B, C, H, W
                 means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1)
                 stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1)
-            elif len(self.means[m]) == 1:
-                # B, (T,) H, W
+            elif len(image.shape) == 2 or len(image.shape) == 1:
                 means = torch.tensor(self.means[m], device=image.device)
                 stds = torch.tensor(self.stds[m], device=image.device)
-            elif len(image.shape) == 3:  # No batch dim
-                # C, H, W
-                means = torch.tensor(self.means[m], device=image.device).view(-1, 1, 1)
-                stds = torch.tensor(self.stds[m], device=image.device).view(-1, 1, 1)
-
-            elif len(image.shape) == 2:
-                means = torch.tensor(self.means[m], device=image.device)
-                stds = torch.tensor(self.stds[m], device=image.device)
-
-            elif len(image.shape) == 1:
-                means = torch.tensor(self.means[m], device=image.device)
-                stds = torch.tensor(self.stds[m], device=image.device)
-
             else:
-                msg = (f"Expected batch with 5 or 4 dimensions (B, C, (T,) H, W), sample with 3 dimensions (C, H, W) "
-                       f"or a single channel, but got {len(image.shape)}")
+                msg = (
+                    f"Expected batch with 4 dimensions (B, C, H, W), sample with 2 dimensions (H, W) "
+                    f"or a single channel, but got {len(image.shape)}"
+                )
                 raise Exception(msg)
 
             batch["image"][m] = (image - means) / stds
@@ -64,23 +48,16 @@ class MultimodalNormalize(Callable):
 # https://torchgeo.readthedocs.io/en/latest/tutorials/contribute_non_geo_dataset.html
 class SatChipDataset(NonGeoDataset):
     def __init__(self, label_path, s2_path, rtc_path, transforms=None, split='train'):
-        self.transforms = transforms
+        if not transforms:
+            self.transforms = ToTensorV2()
+        else:
+            self.transforms = transforms
+
+        self.slice_range = slice(3, 259)
 
         label_ds = _load_ds(label_path)
         s2_ds = _load_ds(s2_path)
         rtc_ds = _load_ds(rtc_path)
-
-        n = len(label_ds.sample)
-        train_end = int(0.8 * n)
-        if split == 'train':
-            split_slice = slice(0, train_end)
-        elif split == 'test':
-            split_slice = slice(train_end, n)
-        else:
-            raise ValueError(f'Invalid split: {split}')
-
-        self.label_ds = label_ds.isel(sample=split_slice)
-        samples = self.label_ds.sample
 
         # TODO: enforce this in satchip as well
         band_order = [
@@ -98,8 +75,8 @@ class SatChipDataset(NonGeoDataset):
             'SWIR22',
         ]
 
-        # self.s2_ds = s2_ds.isel(sample=split_slice).reindex(band=band_order)
-        # self.rtc_ds = rtc_ds.isel(sample=split_slice).reindex(band=['VV', 'VH'])
+        self.label_ds = label_ds
+        samples = self.label_ds.sample
 
         self.s2_ds = s2_ds.sel(sample=samples).reindex(sample=samples, band=band_order)
         self.rtc_ds = rtc_ds.sel(sample=samples).reindex(sample=samples, band=['VV', 'VH'])
@@ -108,37 +85,28 @@ class SatChipDataset(NonGeoDataset):
         return len(self.label_ds.sample)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        slice_range = slice(3, 259)
-
-        sample_data = self.label_ds.isel(sample=index, x=slice_range, y=slice_range).squeeze()
+        sample_data = self.label_ds.isel(sample=index, x=self.slice_range, y=self.slice_range).squeeze()
         sample_array = sample_data.bands.data
         sample_id = str(sample_data.sample.data)
 
-        rtc_data = self.rtc_ds.sel(sample=sample_id).isel(x=slice_range, y=slice_range).squeeze()
-        rtc_data = self._drop_empty_time_slices(rtc_data)
-        rtc_array = rtc_data.squeeze().data.data
-
-        s2_data = self.s2_ds.sel(sample=sample_id).isel(x=slice_range, y=slice_range).squeeze()
-        s2_data = self._drop_empty_time_slices(s2_data)
-        s2_array = s2_data.squeeze().data.data
-
-        rtc_array = np.transpose(rtc_array, (1, 2, 0))
-        s2_array = np.transpose(s2_array, (1, 2, 0))
-
-        if not self.transforms:
-            self.transforms = ToTensorV2()
-
         image_output = {
-            "S2L2A": self.transforms(image=s2_array)['image'],
-            "S1RTC": self.transforms(image=rtc_array)['image'],
+            "S2L2A": self._get_image_array(sample_id, self.s2_ds),
+            "S1RTC": self._get_image_array(sample_id, self.rtc_ds),
         }
 
         mask_output = self.transforms(image=sample_array)['image'][0]
-
         output = {'mask': mask_output, 'image': image_output}
 
         return output
 
+    def _get_image_array(self, sample_id, ds):
+        data = ds.sel(sample=sample_id).isel(x=self.slice_range, y=self.slice_range).squeeze()
+        data = self._drop_empty_time_slices(data)
+        array = data.squeeze().data.data
+
+        array = np.transpose(array, (1, 2, 0))
+
+        return self.transforms(image=array)['image']
 
     def _drop_empty_time_slices(self, ds: xr.Dataset) -> xr.Dataset:
         non_zero_count = ds.isel(band=0).where(ds.isel(band=0) != 0).count(dim=('x', 'y')).data.data
@@ -168,11 +136,14 @@ class SatChipDataset(NonGeoDataset):
 
     def plot(self, sample: dict[str, Any], suptitle: str | None = None) -> Figure:
         mask = sample['mask']
-        vv = self.normalize_image_array(np.sqrt(sample['image'][:, :, 0]), 0.14, 0.52)
-        vh = self.normalize_image_array(np.sqrt(sample['image'][:, :, 1]), 0.05, 0.259)
-        red = self.normalize_image_array(sample['image'][:, :, 5], 0, 3000)
-        green = self.normalize_image_array(sample['image'][:, :, 4], 0, 3000)
-        blue = self.normalize_image_array(sample['image'][:, :, 3], 0, 3000)
+
+        vv = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[0, :, :]), 0.14, 0.52)
+        vh = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[1, :, :]), 0.05, 0.259)
+
+        red = self.normalize_image_array(sample['image']['S2L2A'].numpy()[3, :, :], 0, 3000)
+        green = self.normalize_image_array(sample['image']['S2L2A'].numpy()[2, :, :], 0, 3000)
+        blue = self.normalize_image_array(sample['image']['S2L2A'].numpy()[1, :, :], 0, 3000)
+
         rtc = np.stack([vv, vh, vv], axis=-1)
         rgb = np.stack([red, green, blue], axis=-1)
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 5), layout='compressed')
@@ -231,8 +202,6 @@ class SatChipDataModule(NonGeoDataModule):
 
     def __init__(self, batch_size: int = 8, num_workers: int = 0, **kwargs: Any) -> None:
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
-        # you can specify a series of Kornia augmentations that will be
-        # applied to a batch of training data in `on_after_batch_transfer` in the NonGeoDataModule base class
         means = {
             'S1RTC': torch.Tensor(self.s1rtc_mean),
             'S2L2A': torch.Tensor(self.s2l2a_mean)
@@ -243,10 +212,15 @@ class SatChipDataModule(NonGeoDataModule):
             'S2L2A': torch.Tensor(self.s2l2a_std)
         }
 
-        self.aug = MultimodalNormalize(means, stds)
+        self.training_transforms = A.Compose([
+            A.D4(),
+            ToTensorV2()
+        ])
 
         # you can also define specific augmentations for other experiment phases, if not specified
         # self.aug Augmentations will be applied
+        self.aug = MultimodalNormalize(means, stds)
+
         self.size = 256
 
     # setup defines how the dataset should be split
@@ -260,10 +234,10 @@ class SatChipDataModule(NonGeoDataModule):
         """
         assert stage in ['fit', 'validate', 'test']
         if stage in ['fit', 'validate']:
-            dataset = SatChipDataset(split='train', **self.kwargs)
+            dataset = SatChipDataset(split='train', transforms=self.training_transforms, **self.kwargs)
             train_indices, val_indices = group_shuffle_split(range(len(dataset)), test_size=0.2, random_state=0)
-            self.train_dataset = Subset(dataset, train_indices).dataset
-            self.val_dataset = Subset(dataset, val_indices).dataset
+            self.train_dataset = Subset(dataset, train_indices)
+            self.val_dataset = Subset(dataset, val_indices)
         if stage in ['test']:
             self.test_dataset = SatChipDataset(split='test', **self.kwargs)
 
