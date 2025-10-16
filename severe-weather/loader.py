@@ -216,6 +216,7 @@ class SatChipDataModule(NonGeoDataModule):
         }
 
         self.training_transforms = A.Compose([
+            A.CenterCrop(width=256, height=256),
             A.D4(),
             ToTensorV2()
         ])
