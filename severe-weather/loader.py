@@ -88,7 +88,7 @@ class SatChipDataset(NonGeoDataset):
         return len(self.label_ds.sample)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        sample_data = self.label_ds.isel(sample=index, x=self.slice_range, y=self.slice_range).squeeze()
+        sample_data = self.label_ds.isel(sample=index).squeeze()
         sample_array = sample_data.bands.data
         sample_id = str(sample_data.sample.data)
 
@@ -103,7 +103,7 @@ class SatChipDataset(NonGeoDataset):
         return output
 
     def _get_image_array(self, sample_id, ds):
-        data = ds.sel(sample=sample_id).isel(x=self.slice_range, y=self.slice_range).squeeze()
+        data = ds.sel(sample=sample_id).squeeze()
         data = self._drop_empty_time_slices(data)
         array = data.squeeze().data.data
 
