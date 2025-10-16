@@ -85,7 +85,7 @@ class SatChipDataset(NonGeoDataset):
 
     def _get_image_array(self, chip_path: Path, squeeze=False) -> torch.Tensor:
         ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=0).data[:, self.slice_range, self.slice_range].astype(float)
+        array = ds.bands.isel(time=0).data[:, self.slice_range, self.slice_range].astype(np.float32)
         array = np.transpose(array, (1, 2, 0))  # to height, width, channel
         tensor = self.transforms(image=array)['image']
         if squeeze:
