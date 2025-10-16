@@ -247,9 +247,9 @@ class SatChipDataModule(NonGeoDataModule):
 
 if __name__ == '__main__':
     data_path = Path('data/zarrs')
-    rtc_path = data_path / 'swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip'
-    s2_path = data_path / 'swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip'
-    label_path = data_path / 'swathID_638_swathDate_2020-06-04.zarr.zip'
+    rtc_path = data_path / 'swathID_1507_swathDate_2020-07-06_S1RTC.zarr.zip'
+    s2_path = data_path / 'swathID_1507_swathDate_2020-07-06_S2L2A.zarr.zip'
+    label_path = data_path / 'swathID_1507_swathDate_2020-07-06.zarr.zip'
     sc_dataset = SatChipDataset(label_path, s2_path, rtc_path)
     # Testing dataset
     print(len(sc_dataset))
