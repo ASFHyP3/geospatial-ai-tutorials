@@ -75,18 +75,22 @@ class SatChipDataset(NonGeoDataset):
 
     def __getitem__(self, index: int) -> dict[str, Any]:
         chip_paths = self.chip_list[index]
+        label = self._get_image_array(chip_paths['LABEL'], squeeze=True)
         image_output = {
             'S1RTC': self._get_image_array(chip_paths['S1RTC']),
             'S2L2A': self._get_image_array(chip_paths['S2L2A']),
         }
-        output = {'mask': self._get_image_array(chip_paths['LABEL']), 'image': image_output}
+        output = {'mask': label, 'image': image_output}
         return output
 
-    def _get_image_array(self, chip_path: Path) -> torch.Tensor:
+    def _get_image_array(self, chip_path: Path, squeeze=False) -> torch.Tensor:
         ds = self._load_ds(chip_path)
         array = ds.bands.isel(time=0).data[:, self.slice_range, self.slice_range].astype(float)
         array = np.transpose(array, (1, 2, 0))  # to height, width, channel
-        return self.transforms(image=array)['image']
+        tensor = self.transforms(image=array)['image']
+        if squeeze:
+            tensor = tensor.squeeze()
+        return tensor
 
     def _load_ds(self, dataset_path: str | Path) -> xr.Dataset:
         store = zarr.storage.ZipStore(dataset_path, read_only=True)  # type: ignore
@@ -110,7 +114,7 @@ class SatChipDataset(NonGeoDataset):
         return normalized_array
 
     def plot(self, sample: dict[str, Any], suptitle: str | None = None) -> Figure:
-        mask = sample['mask'].squeeze()
+        mask = sample['mask']
 
         vv = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[0, :, :]), 0.14, 0.52)
         vh = self.normalize_image_array(np.sqrt(sample['image']['S1RTC'].numpy()[1, :, :]), 0.05, 0.259)
