@@ -50,11 +50,10 @@ class MultimodalNormalize(Callable):
 class SatChipDataset(NonGeoDataset):
     def __init__(self, chip_path, transforms=None, split='train'):
         if not transforms:
-            self.transforms = ToTensorV2()
+            self.transforms = A.Compose([A.CenterCrop(width=256, height=256), ToTensorV2()])
         else:
             self.transforms = transforms
 
-        self.slice_range = slice(3, 259)
         label_path = chip_path / split / 'LABEL'
         rtc_path = chip_path / split / 'S1RTC'
         s2_path = chip_path / split / 'S2L2A'
@@ -85,7 +84,7 @@ class SatChipDataset(NonGeoDataset):
 
     def _get_image_array(self, chip_path: Path, squeeze=False) -> torch.Tensor:
         ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=0).data[:, self.slice_range, self.slice_range].astype(np.float32)
+        array = ds.bands.isel(time=0).data.astype(np.float32)
         array = np.transpose(array, (1, 2, 0))  # to height, width, channel
         tensor = self.transforms(image=array)['image']
         if squeeze:
@@ -177,6 +176,7 @@ class SatChipDataModule(NonGeoDataModule):
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
         means = {'S1RTC': torch.Tensor(self.s1rtc_mean), 'S2L2A': torch.Tensor(self.s2l2a_mean)}
         stds = {'S1RTC': torch.Tensor(self.s1rtc_std), 'S2L2A': torch.Tensor(self.s2l2a_std)}
+        self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4(), ToTensorV2()])
         self.training_transforms = A.Compose([A.D4(), ToTensorV2()])
 
         # you can also define specific augmentations for other experiment phases, if not specified
