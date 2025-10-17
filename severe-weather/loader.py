@@ -55,16 +55,16 @@ class SatChipDataset(NonGeoDataset):
             self.transforms = transforms
 
         self.slice_range = slice(3, 259)
-        self.label_path = chip_path / split / 'LABEL'
-        self.rtc_path = chip_path / split / 'S1RTC'
-        self.s2_path = chip_path / split / 'S2L2A'
-        self.chip_names = ['_'.join(x.name.split('_')[-4:]).split('.')[0] for x in self.label_path.glob('*.zarr.zip')]
-        self.chip_names = sorted(self.chip_names)
-        labels = list(self.label_path.glob('*.zarr.zip'))
-        rtcs = list(self.rtc_path.glob('*.zarr.zip'))
-        s2s = list(self.s2_path.glob('*.zarr.zip'))
+        label_path = chip_path / split / 'LABEL'
+        rtc_path = chip_path / split / 'S1RTC'
+        s2_path = chip_path / split / 'S2L2A'
+        chip_names = ['_'.join(x.name.split('_')[-4:]).split('.')[0] for x in label_path.glob('*.zarr.zip')]
+        chip_names = sorted(chip_names)
+        labels = list(label_path.glob('*.zarr.zip'))
+        rtcs = list(rtc_path.glob('*.zarr.zip'))
+        s2s = list(s2_path.glob('*.zarr.zip'))
         self.chip_list = []
-        for name in self.chip_names:
+        for name in chip_names:
             label = [x for x in labels if name in x.name][0]
             rtc = [x for x in rtcs if name in x.name][0]
             s2 = [x for x in s2s if name in x.name][0]
