@@ -177,7 +177,6 @@ class SatChipDataModule(NonGeoDataModule):
         means = {'S1RTC': torch.Tensor(self.s1rtc_mean), 'S2L2A': torch.Tensor(self.s2l2a_mean)}
         stds = {'S1RTC': torch.Tensor(self.s1rtc_std), 'S2L2A': torch.Tensor(self.s2l2a_std)}
         self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4(), ToTensorV2()])
-        self.training_transforms = A.Compose([A.D4(), ToTensorV2()])
 
         # you can also define specific augmentations for other experiment phases, if not specified
         # self.aug Augmentations will be applied
