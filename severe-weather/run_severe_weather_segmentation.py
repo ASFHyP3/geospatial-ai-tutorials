@@ -15,12 +15,7 @@ print('GPU count:', torch.cuda.device_count())
 print('Torch CUDA version:', torch.version.cuda)
 print('Compiled with CUDA:', torch.backends.cudnn.is_available())
 
-data_path = Path('data')
-rtc_path = data_path / 'swathID_1507_swathDate_2020-07-06_S1RTC.zarr.zip'
-s2_path = data_path / 'swathID_1507_swathDate_2020-07-06_S2L2A.zarr.zip'
-label_path = data_path / 'swathID_1507_swathDate_2020-07-06.zarr.zip'
-
-datamodule = loader.SatChipDataModule(batch_size=8, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
+datamodule = loader.SatChipDataModule(batch_size=8, chip_path=Path('chips'))
 
 # Setup train and val datasets
 datamodule.setup('fit')
