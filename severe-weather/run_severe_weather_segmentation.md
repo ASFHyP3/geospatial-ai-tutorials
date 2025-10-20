@@ -10,38 +10,36 @@ The data are in `zarr` format and prepared using [SatChip](https://github.com/fo
 
 SatChip prepares data labels and satellite images into 264x264 image arrays that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files.  [Here](generating_chip_data.md) is a tutorial on generating your own chip data. 
 
-Below is an example of metadata associated with the Sentinel-1 RTC chip `swathID_638_swathDate_2020-06-04`: 
+Below is an example of metadata associated with the Sentinel-1 RTC chip `swathID_1260_swathDate_2019-06-17_464U_867L_2_0_S1RTC.zarr.zip`: 
 ```
-<xarray.Dataset> Size: 587MB
-Dimensions:   (sample: 263, platform: 1, time: 4, band: 2, y: 264, x: 264)
+<xarray.Dataset> Size: 562kB
+Dimensions:      (time: 1, band: 2, y: 264, x: 264)
 Coordinates:
-  * band      (band) <U2 16B 'VH' 'VV'
-  * platform  (platform) object 8B 'S1RTC'
-  * sample    (sample) object 2kB '494U_807L_0_0' ... '507U_805L_1_3'
-  * time      (time) datetime64[ns] 32B 2020-06-06T00:46:37 ... 2020-06-13T00...
-  * x         (x) int64 2kB 0 1 2 3 4 5 6 7 ... 256 257 258 259 260 261 262 263
-  * y         (y) int64 2kB 0 1 2 3 4 5 6 7 ... 256 257 258 259 260 261 262 263
+  * band         (band) <U2 16B 'VV' 'VH'
+    sample       <U13 52B ...
+    spatial_ref  int64 8B ...
+  * time         (time) datetime64[ns] 8B 2019-06-17T00:54:07
+  * x            (x) float64 2kB 5.679e+05 5.679e+05 ... 5.705e+05 5.705e+05
+  * y            (y) float64 2kB 4.625e+06 4.625e+06 ... 4.622e+06 4.622e+06
 Data variables:
-    data      (sample, platform, time, band, y, x) float32 587MB ...
+    bands        (time, band, y, x) float32 558kB ...
+    center_lat   float64 8B ...
+    center_lon   float64 8B ...
+    crs          int64 8B ...
 Attributes:
-    date_created:     2020-06-04T00:00:00
-    satchip_version:  0.3.0
-    bounds:           [-103.24111, 44.39625, -101.30495, 45.58643]
-```
+    date_created:     2025-10-20T11:50:48.795768
+    satchip_version:  0.2.0
+    bounds:           [-104.18344, 41.74808, -104.15138, 41.77162]```
 Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data include a Labeled hail damage, S1RTC, and S2L2A data from June 4, 2020.  
 You can download them in the terminal command line with the following commands.
 ```bash
-mkdir data
-cd data
-curl -L "https://drive.usercontent.google.com/download?id={1XgwNgIdAJRvr4sk7K9J_vkxQu2DukFrn}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-gAvk2vXxVpJh2}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
-cd ..
+curl -L "https://drive.usercontent.google.com/download?id={1vW-GavIOd3qc49cGkgRBUXRuddtNWUgC}&confirm=xxx" -o chips.zip
+unzip chips.zip
 ```
 You can load the data in Python using `satchip.util.load_chip`, as demonstrated with the following code snippet.
 ```python
 from satchip import utils
-utils.load_chip('data/swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip')
+utils.load_chip('chips/train/S1RTC/swathID_1260_swathDate_2019-06-17_464U_867L_2_0_S1RTC.zarr.zip')
 ```
 
 ### Data loader
@@ -53,7 +51,7 @@ Using the `SatChipDataModule` function, you can initialize the dataset by provid
 ```python
 import loader
 
-datamodule = loader.SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
+datamodule = loader.SatChipDataModule(chip_path=chip_path, batch_size=2)
 ```
 This `DataModule` object can then be passed to the Pytorch `Trainer` object for training. 
 We recommend using the [`TerraMind`](https://huggingface.co/ibm-esa-geospatial/TerraMind-1.0-base) when working with `SatChip` Data. You can check out the suggested model parameters in [`train.py`](train.py).
@@ -69,12 +67,8 @@ You can verify your environment is correctly setup with `torchgeo --help`.
 ### Example Tutorial
 We will run a trial training using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section. If you have not already, run the following command to download the data. 
 ```bash
-mkdir data
-cd data
-curl -L "https://drive.usercontent.google.com/download?id={1XgwNgIdAJRvr4sk7K9J_vkxQu2DukFrn}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-gAvk2vXxVpJh2}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
-cd ..
+curl -L "https://drive.usercontent.google.com/download?id={1vW-GavIOd3qc49cGkgRBUXRuddtNWUgC}&confirm=xxx" -o chips.zip
+unzip chips.zip
 ```
 
 In NAS, we run jobs using the [Portable Batch System (PBS)](https://www.nas.nasa.gov/hecc/support/kb/portable-batch-system-(pbs)-overview_126.html). We submit jobs using the `qsub` command and monitor jobs using the `qstat` command.
