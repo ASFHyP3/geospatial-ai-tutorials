@@ -18,6 +18,9 @@ def get_date_from_name(name: str) -> str:
 def make_labels(raster_name: str) -> None:
     swath_raster_path = DATA_DIR / 'hwds-rasters' / raster_name
 
+    if swath_raster_path.exists():
+        return
+
     date = get_date_from_name(raster_name)
 
     chip_label.chip_labels(swath_raster_path, date, OUT_DIR)
@@ -27,8 +30,8 @@ def make_chip_data(raster_name: str, platform: str) -> None:
     zar_name = raster_name.split('.')[0]
     label_zarr_path = OUT_DIR / f'{zar_name}.zarr.zip'
 
-    date_start = get_date_from_name(raster_name)
-    date_end = date_start + datetime.timedelta(days=14)
+    date_start = get_date_from_name(raster_name) - datetime.timedelta(days=28)
+    date_end = date_start + datetime.timedelta(days=7)
 
     chip_data.chip_data(
         label_zarr_path,
