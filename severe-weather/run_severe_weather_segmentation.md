@@ -31,7 +31,8 @@ Attributes:
     satchip_version:  0.2.0
     bounds:           [-104.18344, 41.74808, -104.15138, 41.77162]
 ```
-Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data include Labeled hail damage, S1RTC, and S2L2A data from June 17, 2019 and July 6, 2020. For the purposes of this tutorial, we will use the data from June 2019 to train the model and the data from July 2020 to validate the model. When working with a full dataset, you will also include a `test` folder with data to test the model with. It is a good rule of thumb to split up your data so that ~80% of the data is used for training, ~10% of the dataset is used for validation, and ~10% of the data is used for testing.  
+Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data include Labeled hail damage, S1RTC, and S2L2A data from June 17, 2019 and July 6, 2020. For the purposes of this tutorial, we will use the data from June 2019 to train the model and the data from July 2020 to validate the model. 
+
 You can download a zip file of the tutorial data with the following terminal commands.
 ```bash
 curl -L "https://drive.usercontent.google.com/download?id={1vW-GavIOd3qc49cGkgRBUXRuddtNWUgC}&confirm=xxx" -o chips.zip
@@ -59,7 +60,9 @@ chips/
 └── swathID_1260_swathDate_2020-06-17.tif
 ```
 
-Note that within the `train` and `val` directories, each data type (`LABEL`, `S1RTC`, and `S2L2A`) has its own subdirectory. This folder also includes  `create_chips.py`, the script that created chips create chips from the attached GeoTIFs. 
+Note that within the `train` and `val` directories, each data type (`LABEL`, `S1RTC`, and `S2L2A`) has its own subdirectory. This folder also includes  `create_chips.py`, the script that created chips using the attached GeoTIFs. 
+
+When working with a full dataset, you will also include a `test` folder with data to test the model. It is a good rule of thumb to split up your data so that ~80% of the data is used for training, ~10% of the dataset is used for validation, and ~10% of the data is used for testing.  
 
 You can load the data in Python using `satchip.util.load_chip`, as demonstrated with the following code snippet.
 ```python
