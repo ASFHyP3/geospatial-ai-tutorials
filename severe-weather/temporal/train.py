@@ -15,7 +15,8 @@ print('GPU count:', torch.cuda.device_count())
 print('Torch CUDA version:', torch.version.cuda)
 print('Compiled with CUDA:', torch.backends.cudnn.is_available())
 
-chip_path = Path.home() / 'Data/severe-weather-temporal/chips'
+# chip_path = Path.home() / 'Data/severe-weather-temporal/chips'
+chip_path = Path.home() / 'Data/severe-weather-temporal/chips_timeseries'
 datamodule = loader.SatChipTemporalDataModule(batch_size=1, chip_path=chip_path)
 
 # Setup train and val datasets
@@ -63,8 +64,8 @@ model = terratorch.tasks.SemanticSegmentationTask(
         'backbone': 'terramind_v1_base',  # large version: terramind_v1_large
         'backbone_pretrained': True,
         'backbone_modalities': ['S2L2A', 'S1RTC'],
-        # 'backbone_use_temporal': True,
-        # 'backbone_temporal_pooling': 'mean',
+        'backbone_use_temporal': True,
+        'backbone_temporal_pooling': 'mean',
         # Optionally, define the input bands. This is only needed if you select a subset of the pre-training bands, as explained above.
         # "backbone_bands": {"S1GRD": ["VV"]},
         # Necks

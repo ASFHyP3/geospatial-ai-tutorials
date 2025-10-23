@@ -31,7 +31,7 @@ class MultimodalNormalize(Callable):
                 # B, C, T, H, W
                 means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1, 1)
                 stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1, 1)
-            if len(image.shape) == 4:
+            elif len(image.shape) == 4:
                 # B, C, H, W
                 means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1)
                 stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1)
@@ -41,7 +41,7 @@ class MultimodalNormalize(Callable):
             else:
                 msg = (
                     f'Expected batch with 4 dimensions (B, C, H, W), sample with 2 dimensions (H, W) '
-                    f'or a single channel, but got {len(image.shape)}'
+                    f'or a single channel, but got {image.shape}'
                 )
                 raise Exception(msg)
 
@@ -56,35 +56,47 @@ class SatChipTemporalDataset(NonGeoDataset):
             self.transforms = A.Compose([A.CenterCrop(width=256, height=256), ToTensorV2()])
         else:
             self.transforms = transforms
-
-        label_path = chip_path / 'LABEL'
+        split_path = chip_path / split
+        label_path = split_path / 'LABEL'
         chip_names = ['_'.join(x.name.split('_')[-4:]).split('.')[0] for x in label_path.glob('*.zarr.zip')]
+        #  ['465U_866L_3_3', '464U_867L_3_0', '464U_867L_2_0', '465U_865L_0_3']
+        modalities = ['S2L2A', 'S1RTC', 'HLS']
+        data_dir_paths = [
+            p for p in split_path.iterdir() if p.is_dir() and p.name in modalities
+        ]
+
         chip_names = sorted(chip_names)
         self.chip_list = []
-        for name in chip_names:
-            label = torch.randint(0, 2, (256, 256)).float()
-            s1 = torch.randn(2, 256, 256)
-            s2 = torch.randn(12, 256, 256)
 
-            image_output = {
-                'S1RTC': s1,
-                'S2L2A': s2
-            }
-
-            output = {'mask': label, 'image': image_output}
-            self.chip_list.append(output)
+        for chip_name in chip_names:
+            chip = {'LABEL': next(label_path.glob(f'*{chip_name}.zarr.zip'))}
+            for data_dir in data_dir_paths:
+                modality = data_dir.name
+                data_path = next(data_dir.glob(f'*{chip_name}_{modality}.zarr.zip'))
+                chip[modality] = data_path
+            self.chip_list.append(chip)
 
     def __len__(self):
         return len(self.chip_list)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        return self.chip_list[index]
+        chip_paths = self.chip_list[index]
+        label = self._get_image_array(chip_paths['LABEL']).squeeze()
+        image_output = {
+            'S1RTC': self._get_image_array(chip_paths['S1RTC']),
+            'S2L2A': self._get_image_array(chip_paths['S2L2A']),
+        }
+        # B, C, T, H, W
+        output = {'mask': label, 'image': image_output}
+        return output
 
     def _get_image_array(self, chip_path: Path) -> torch.Tensor:
         ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=0).data.astype(np.float32)
-        array = np.transpose(array, (1, 2, 0))  # to height, width, channel
-        return self.transforms(image=array)['image']
+        crop = slice(0, 256)
+        array = ds.bands.isel(x=crop, y=crop, time=slice(0, 4)).values.astype(np.float32)
+        array = np.transpose(array, (1, 0, 2, 3))
+        tensor = torch.from_numpy(array)
+        return tensor
 
     def _load_ds(self, dataset_path: str | Path) -> xr.Dataset:
         store = zarr.storage.ZipStore(dataset_path, read_only=True)  # type: ignore
