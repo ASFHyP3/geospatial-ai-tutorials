@@ -3,59 +3,68 @@ SatChip datasets are pre-chipped [TorchGeo](https://github.com/torchgeo/torchgeo
 In this tutorial, we will discuss the organization of SatChip data, the SatChip Dataset and DataModule, and run a tutorial example with pre-staged data.
 
 ### Dataset organization
-The data are in `zarr` format and prepared using [SatChip](https://github.com/forrestfwilliams/satchip), a Python package for preparing satellite images for TorchGeo. Currently supported datasets include: 
-* S2L2A: Sentinel-2 L2A data sourced from the [Sentinel-2 AWS Open Data Archive](https://registry.opendata.aws/sentinel-2/)
-* HLS: Harmonized Landsat Sentinel-2 data sourced from [LP DAAC's Data Archive](https://www.earthdata.nasa.gov/data/projects/hls)
-* S1RTC: Sentinel-1 Radiometric Terrain Corrected (RTC) data created using [ASF's HyP3 on-demand platform](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
+The data chips are in `zarr` format and prepared using [SatChip](https://github.com/ASFHyP3/satchip), a Python package for preparing satellite images for TorchGeo. Currently supported datasets include:
 
-SatChip prepares data labels and satellite images into 264x264 image arrays that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files.  [Here](generating_chip_data.md) is a tutorial on generating your own chip data. 
+- `S2L2A`: Sentinel-2 L2A data sourced from the [Sentinel-2 AWS Open Data Archive](https://registry.opendata.aws/sentinel-2/)
+- `HLS`: Harmonized Landsat Sentinel-2 data sourced from [LP DAAC's Data Archive](https://www.earthdata.nasa.gov/data/projects/hls)
+- `S1RTC`: OPERA Sentinel-1 Radiometric Terrain Corrected (RTC) data from [ASF DAAC's Data Archive](https://www.jpl.nasa.gov/go/opera/products/rtc-product/)
+- `HYP3S1RTC`: Sentinel-1 Radiometric Terrain Corrected (RTC) data created using [ASF's HyP3 on-demand platform](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
 
-Below is an example of metadata associated with the Sentinel-1 RTC chip `swathID_638_swathDate_2020-06-04`: 
-```
-<xarray.Dataset> Size: 587MB
-Dimensions:   (sample: 263, platform: 1, time: 4, band: 2, y: 264, x: 264)
-Coordinates:
-  * band      (band) <U2 16B 'VH' 'VV'
-  * platform  (platform) object 8B 'S1RTC'
-  * sample    (sample) object 2kB '494U_807L_0_0' ... '507U_805L_1_3'
-  * time      (time) datetime64[ns] 32B 2020-06-06T00:46:37 ... 2020-06-13T00...
-  * x         (x) int64 2kB 0 1 2 3 4 5 6 7 ... 256 257 258 259 260 261 262 263
-  * y         (y) int64 2kB 0 1 2 3 4 5 6 7 ... 256 257 258 259 260 261 262 263
-Data variables:
-    data      (sample, platform, time, band, y, x) float32 587MB ...
-Attributes:
-    date_created:     2020-06-04T00:00:00
-    satchip_version:  0.3.0
-    bounds:           [-103.24111, 44.39625, -101.30495, 45.58643]
-```
-Pre-staged data are available in Google Drive to run this [tutorial](#example-tutorial). These data include a Labeled hail damage, S1RTC, and S2L2A data from June 4, 2020.  
+SatChip prepares data labels and satellite images into 264x264 sample files that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files. [Here](./generate-chips/generating_chip_data.md) is a tutorial on generating your own chip data.
+
+A pre-staged dataset is available in Google Drive to run this [tutorial](#example-tutorial). These data include a Labeled hail damage, S1RTC, and S2L2A data. The data is also seperated into train and val folders each with their own sets of Label, S1 and S2 data chips.
+
 You can download them in the terminal command line with the following commands.
 ```bash
 mkdir data
 cd data
-curl -L "https://drive.usercontent.google.com/download?id={1XgwNgIdAJRvr4sk7K9J_vkxQu2DukFrn}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-gAvk2vXxVpJh2}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
+curl -L "https://drive.usercontent.google.com/download?id={12eJsKXlPa4kF1Gt5p887l1J_yX-Nr2nO}&confirm=xxx" -o chips_timeseries.zip
+unzip chips_timeseries.zip
 cd ..
 ```
+
 You can load the data in Python using `satchip.util.load_chip`, as demonstrated with the following code snippet.
 ```python
 from satchip import utils
-utils.load_chip('data/swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip')
+chip = utils.load_chip('data/chips_timeseries/train/S1RTC/swathID_1260_swathDate_2019-06-17_464U_867L_2_0_S1RTC.zarr.zip')
+```
+
+The loaded chips will be the following xarray dataset:
+```
+<xarray.Dataset> Size: 2MB
+Dimensions:      (time: 4, band: 2, y: 264, x: 264)
+Coordinates:
+  * time         (time) datetime64[ns] 32B 2019-06-05T00:54:07 ... 2019-06-24...
+  * band         (band) <U2 16B 'VV' 'VH'
+  * y            (y) float64 2kB 4.625e+06 4.625e+06 ... 4.622e+06 4.622e+06
+  * x            (x) float64 2kB 5.679e+05 5.679e+05 ... 5.705e+05 5.705e+05
+    sample       <U13 52B ...
+    spatial_ref  int64 8B ...
+Data variables:
+    bands        (time, band, y, x) float32 2MB ...
+    center_lat   float64 8B ...
+    center_lon   float64 8B ...
+    crs          int64 8B ...
+Attributes:
+    date_created:     2025-10-21T16:48:58.252747
+    satchip_version:  0.2.0
+    bounds:           [-104.18344, 41.74808, -104.15138, 41.77162]
 ```
 
 ### Data loader
-TorchGeo uses [dataset classes](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#geospatial-datasets) to handle geospatial and non-geospatial data. A `DataSet`stores the data and their corresponding labels, while the `DataModule` wraps around the `DataSet` to access and transform and the `DataLoader` to batch and shuffle the data. The `DataModule` is then utilized by the Pytorch `Trainer` object to train the model. 
+TorchGeo uses [dataset classes](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#geospatial-datasets) to handle geospatial and non-geospatial data. A `DataSet` stores the data and their corresponding labels, while the `DataModule` wraps around the `DataSet` to access and transform and the `DataLoader` to batch and shuffle the data. The `DataModule` also is reponsible for splitting the data into training, validation and testing splits. The `DataModule` is then utilized by the Pytorch `Trainer` object to train the model.
 
-The `SatChip` dataset class is specifically designed for working with prepared SatChip data. It inherits TerraTorch's [`NonGeoDataset`](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#non-geospatial-datasets) base class. Both the SatChip Dataset and DataModule code is in a [`loader.py`](loader.py).
+The `SatChip` dataset class is specifically designed for working with prepared SatChip data. It inherits TerraTorch's [`NonGeoDataset`](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#non-geospatial-datasets) base class. Both the SatChip Dataset and DataModule code is in a [`loaders.py`](training/loaders.py).
 
-Using the `SatChipDataModule` function, you can initialize the dataset by providing Path object paths to the labeled, S2L2A and S1RTC data.
+There are a number of different dataset classes for loading the data in `chips_timeseries` in different ways. `SatChipDataset` will load is used to load only one timestep. `SatChipTemporalDataset` is used to load datasets with multiple timesteps. There are also `SatChipDataModule ` and `SatChipTemporalDataModule` for loading and training diffrent datasets. For the `chips_timeseries` data we will use `SatChipTemporalDataModule`
+
+Using the `SatChipTemporalDataModule` function, you can initialize the dataset by providing Path object paths to the labeled, S2L2A and S1RTC data.
 ```python
 import loader
 
-datamodule = loader.SatChipDataModule(batch_size=2, label_path=label_path, s2_path=s2_path, rtc_path=rtc_path)
+datamodule = loader.SatChipTemporalDataModule(batch_size=2, chip_path='data/chips_timeseries')
 ```
-This `DataModule` object can then be passed to the Pytorch `Trainer` object for training. 
+This `DataModule` object can then be passed to the Pytorch `Trainer` object for training.
 We recommend using the [`TerraMind`](https://huggingface.co/ibm-esa-geospatial/TerraMind-1.0-base) when working with `SatChip` Data. You can check out the suggested model parameters in [`train.py`](train.py).
 
 ### Setup
@@ -67,21 +76,13 @@ You can verify your environment is correctly setup with `torchgeo --help`.
 
 
 ### Example Tutorial
-We will run a trial training using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section. If you have not already, run the following command to download the data. 
-```bash
-mkdir data
-cd data
-curl -L "https://drive.usercontent.google.com/download?id={1XgwNgIdAJRvr4sk7K9J_vkxQu2DukFrn}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S1RTC.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1-Gjgn5LVo6pLMViMZZ-gAvk2vXxVpJh2}&confirm=xxx" -o swathID_638_swathDate_2020-06-04_S2L2A.zarr.zip
-curl -L "https://drive.usercontent.google.com/download?id={1AtoUCf6Ge5qvLWvTuuhfNfnzXo__xzL7}&confirm=xxx" -o swathID_638_swathDate_2020-06-04.zarr.zip
-cd ..
-```
+We will run a trial training using the DataModule with the data downloaded in the [Dataset Organization](#dataset-organization) section. If you have not already, run the commands from that section.
 
 In NAS, we run jobs using the [Portable Batch System (PBS)](https://www.nas.nasa.gov/hecc/support/kb/portable-batch-system-(pbs)-overview_126.html). We submit jobs using the `qsub` command and monitor jobs using the `qstat` command.
 
-You will need to modify the submission script (`run_severe_weather_segmentation.sh`) before running a job. Take a look at the submission script by calling `vi run_severe_weather_segmentation.sh`. Lines starting with `# PBS` are configurations for PBS. Lines starting with `##` are comments that describe what each set of lines is doing.  Read through these comments. Next, move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status. 
+You will need to modify the submission script (`training/run_severe_weather_segmentation.sh`) before running a job. Take a look at the submission script by calling `vi run_severe_weather_segmentation.sh`. Lines starting with `# PBS` are configurations for PBS. Lines starting with `##` are comments that describe what each set of lines is doing.  Read through these comments. Next, move to line 36 and change the email to your email. This will allow the NAS system to notify you of your job's status.
 
-You can submit the trail training with the QSub command and submit to the PBS service
+While in the training directory you can submit the trail training with the QSub command and submit to the PBS service
 ```bash
 qsub -q gpu_devel run_severe_weather_segmentation.sh
 ```
