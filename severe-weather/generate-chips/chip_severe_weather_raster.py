@@ -4,6 +4,8 @@ import datetime
 from satchip import chip_label, chip_data
 from pathlib import Path
 
+STRATEGY = 'BEST'
+
 
 def get_date_from_name(name: str) -> str:
     date_str = name.split('_')[-1].split('.')[0]
@@ -29,13 +31,13 @@ if __name__ == '__main__':
     label_path = chip_dir / 'LABEL'
     label_paths = list(label_path.glob('*.zarr.zip'))
     image_dir = Path.cwd() / 'images'
-    platform = 'S2L2A'
-    # platform = 'S1RTC'
+    platforms = ['S2L2A', 'S1RTC']
 
-    date_start = date - datetime.timedelta(days=28)
-    date_end = date + datetime.timedelta(days=7)
-    args = (
-        label_paths, platform, date_start, date_end, 'ALL', 100, chip_dir, image_dir
-    )
+    for platform in platforms:
+        date_start = date - datetime.timedelta(days=14)
+        date_end = date + datetime.timedelta(days=7)
+        args = (
+            label_paths, platform, date_start, date_end, 'BEST', 100, chip_dir, image_dir
+        )
 
-    chip_data.create_chips(*args)
+        chip_data.create_chips(*args)
