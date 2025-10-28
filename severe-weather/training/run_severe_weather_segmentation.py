@@ -83,6 +83,7 @@ def main():
     )
 
     trainer.fit(model, datamodule=datamodule)
+    print('Script complete!')
 
 
 if __name__ == '__main__':
