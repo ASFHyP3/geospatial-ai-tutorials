@@ -2,4 +2,6 @@
 __pycache__
 output
 chips
+chips_timeseries
 data
+*.zip

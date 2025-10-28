@@ -1,7 +1,7 @@
-from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from einops import rearrange
 
 import albumentations as A
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import xarray as xr
 import zarr
+import terratorch
 from albumentations.pytorch import ToTensorV2
 from matplotlib.figure import Figure
 from torch.utils.data import Subset
@@ -16,77 +17,130 @@ from torchgeo.datamodules import NonGeoDataModule
 from torchgeo.datamodules.utils import group_shuffle_split
 from torchgeo.datasets import NonGeoDataset
 
+SATCHIP_MODALITIES = ('S2L2A', 'S1RTC', 'HLS')
 
-class MultimodalNormalize(Callable):
-    def __init__(self, means, stds):
-        super().__init__()
-        self.means = means
-        self.stds = stds
+# TODO: check that these are reasonable
+S1RTC_MEAN = [-10.93, -17.329]
+S1RTC_STD = [4.391, 4.459]
+S2L2A_MEAN = [
+    1390.458,
+    1503.317,
+    1718.197,
+    1853.910,
+    2199.100,
+    2779.975,
+    2987.011,
+    3083.234,
+    3132.220,
+    3162.988,
+    2424.884,
+    1857.648,
+]
+S2L2A_STD = [
+    2106.761,
+    2141.107,
+    2038.973,
+    2134.138,
+    2085.321,
+    1889.926,
+    1820.257,
+    1871.918,
+    1753.829,
+    1797.379,
+    1434.261,
+    1334.311,
+]
 
-    def __call__(self, batch):
-        for m in self.means.keys():
-            if m not in batch['image']:
-                continue
-            image = batch['image'][m]
-            if len(image.shape) == 4:
-                # B, C, H, W
-                means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1)
-                stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1)
-            elif len(image.shape) == 2 or len(image.shape) == 1:
-                means = torch.tensor(self.means[m], device=image.device)
-                stds = torch.tensor(self.stds[m], device=image.device)
-            else:
-                msg = (
-                    f'Expected batch with 4 dimensions (B, C, H, W), sample with 2 dimensions (H, W) '
-                    f'or a single channel, but got {len(image.shape)}'
-                )
-                raise Exception(msg)
 
-            batch['image'][m] = (image - means) / stds
-        return batch
-
-
-# https://torchgeo.readthedocs.io/en/latest/tutorials/contribute_non_geo_dataset.html
 class SatChipDataset(NonGeoDataset):
-    def __init__(self, chip_path, transforms=None, split='train'):
+    def __init__(self, chip_path: Path, timesteps: int = 1, modalities=SATCHIP_MODALITIES, transforms=None, split='train'):
+        assert all(m in SATCHIP_MODALITIES for m in modalities)
+
         if not transforms:
-            self.transforms = A.Compose([A.CenterCrop(width=256, height=256), ToTensorV2()])
+            self.transforms = A.Compose([
+                ToTensorV2(),
+            ])
         else:
             self.transforms = transforms
 
-        label_path = chip_path / split / 'LABEL'
-        rtc_path = chip_path / split / 'S1RTC'
-        s2_path = chip_path / split / 'S2L2A'
-        chip_names = ['_'.join(x.name.split('_')[-4:]).split('.')[0] for x in label_path.glob('*.zarr.zip')]
+        split_path = chip_path / split
+        label_path = split_path / 'LABEL'
+
+        def make_chip_name(label_path):
+            return '_'.join(label_path.name.split('_')[-4:]).split('.')[0]
+
+        chip_names = [make_chip_name(label_path) for label_path in label_path.glob('*.zarr.zip')]
+        data_dir_paths = [
+            p for p in split_path.iterdir() if p.is_dir() and p.name in modalities
+        ]
+
         chip_names = sorted(chip_names)
-        labels = list(label_path.glob('*.zarr.zip'))
-        rtcs = list(rtc_path.glob('*.zarr.zip'))
-        s2s = list(s2_path.glob('*.zarr.zip'))
-        self.chip_list = []
-        for name in chip_names:
-            label = [x for x in labels if name in x.name][0]
-            rtc = [x for x in rtcs if name in x.name][0]
-            s2 = [x for x in s2s if name in x.name][0]
-            self.chip_list.append({'LABEL': label, 'S1RTC': rtc, 'S2L2A': s2})
+
+        self.chip_list = self._get_chip_list(chip_names, label_path, data_dir_paths)
+        self.timesteps = timesteps
+        self.modalities = modalities
+
+        data_dir_names, mods = set(p.name for p in data_dir_paths), set(self.modalities)
+        assert mods == data_dir_names, f'Found modality without data directory ({data_dir_names - mods}).'
+
+    def _get_chip_list(self, chip_names, label_path, data_dir_paths):
+        chip_list = []
+
+        for chip_name in chip_names:
+            chip = {'LABEL': next(label_path.glob(f'*{chip_name}.zarr.zip'))}
+            for data_dir in data_dir_paths:
+                modality = data_dir.name
+                data_path = next(data_dir.glob(f'*{chip_name}_{modality}.zarr.zip'))
+                chip[modality] = data_path
+            chip_list.append(chip)
+
+        return chip_list
 
     def __len__(self):
         return len(self.chip_list)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
         chip_paths = self.chip_list[index]
-        label = self._get_image_array(chip_paths['LABEL']).squeeze()
-        image_output = {
-            'S1RTC': self._get_image_array(chip_paths['S1RTC']),
-            'S2L2A': self._get_image_array(chip_paths['S2L2A']),
-        }
+
+        label_array = self._load_mask(chip_paths['LABEL'])
+        label = self.transforms(image=label_array)['image']
+
+        image_output = {}
+        for mod in self.modalities:
+            array = self._load_image_array(chip_paths[mod])
+
+            # C, T, H, W
+            transformed = self._apply_transforms(array)
+
+            image_output[mod] = transformed
+
         output = {'mask': label, 'image': image_output}
+
         return output
 
-    def _get_image_array(self, chip_path: Path) -> torch.Tensor:
+    def _apply_transforms(self, array):
+        if self.timesteps == 1:
+            array = rearrange(array.squeeze(), 'channels height width -> height width channels')
+            return self.transforms(image=array)['image']
+        else:
+            flatten_temporal = rearrange(array, 'time channels height width -> height width (time channels)')
+            transformed = self.transforms(image=flatten_temporal)['image']
+            unflattened = rearrange(transformed, '(time channels) height width -> channels time height width', time=self.timesteps)
+
+            return unflattened
+
+    def _load_image_array(self, chip_path: Path) -> torch.Tensor:
         ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=0).data.astype(np.float32)
-        array = np.transpose(array, (1, 2, 0))  # to height, width, channel
-        return self.transforms(image=array)['image']
+        array = ds.bands.isel(time=slice(0, self.timesteps)).values.astype(np.float32)
+
+        return array
+
+    def _load_mask(self, mask_path: Path):
+        ds = self._load_ds(mask_path)
+        array = ds.bands.isel(time=0).values.astype(np.float32)
+        array = array.squeeze()
+
+        return array
 
     def _load_ds(self, dataset_path: str | Path) -> xr.Dataset:
         store = zarr.storage.ZipStore(dataset_path, read_only=True)  # type: ignore
@@ -136,53 +190,50 @@ class SatChipDataset(NonGeoDataset):
         return fig
 
 
-class SatChipDataModule(NonGeoDataModule):
-    # TODO: check that these are reasonable
-    s1rtc_mean = [-10.93, -17.329]
-    s1rtc_std = [4.391, 4.459]
-    s2l2a_mean = [
-        1390.458,
-        1503.317,
-        1718.197,
-        1853.910,
-        2199.100,
-        2779.975,
-        2987.011,
-        3083.234,
-        3132.220,
-        3162.988,
-        2424.884,
-        1857.648,
-    ]
-    s2l2a_std = [
-        2106.761,
-        2141.107,
-        2038.973,
-        2134.138,
-        2085.321,
-        1889.926,
-        1820.257,
-        1871.918,
-        1753.829,
-        1797.379,
-        1434.261,
-        1334.311,
-    ]
+class MultimodalNormalize(Callable):
+    def __init__(self, means, stds):
+        super().__init__()
+        self.means = means
+        self.stds = stds
 
+    def __call__(self, batch):
+        for m in self.means.keys():
+            if m not in batch['image']:
+                continue
+            image = batch['image'][m]
+            if len(image.shape) == 5:
+                # B, C, T, H, W
+                means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1, 1)
+                stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1, 1)
+            elif len(image.shape) == 4:
+                # B, C, H, W
+                means = torch.tensor(self.means[m], device=image.device).view(1, -1, 1, 1)
+                stds = torch.tensor(self.stds[m], device=image.device).view(1, -1, 1, 1)
+            elif len(image.shape) == 2 or len(image.shape) == 1:
+                means = torch.tensor(self.means[m], device=image.device)
+                stds = torch.tensor(self.stds[m], device=image.device)
+            else:
+                msg = (
+                    f'Expected batch with 4 dimensions (B, C, H, W), sample with 2 dimensions (H, W) '
+                    f'or a single channel, but got {image.shape}'
+                )
+                raise Exception(msg)
+
+            batch['image'][m] = (image - means) / stds
+        return batch
+
+
+class SatChipDataModule(NonGeoDataModule):
     def __init__(self, batch_size: int = 8, num_workers: int = 0, **kwargs: Any) -> None:
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
-        means = {'S1RTC': torch.Tensor(self.s1rtc_mean), 'S2L2A': torch.Tensor(self.s2l2a_mean)}
-        stds = {'S1RTC': torch.Tensor(self.s1rtc_std), 'S2L2A': torch.Tensor(self.s2l2a_std)}
+
         self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4(), ToTensorV2()])
 
-        # you can also define specific augmentations for other experiment phases, if not specified
-        # self.aug Augmentations will be applied
-        self.aug = MultimodalNormalize(means, stds)
-        self.size = 256
+        self.aug = MultimodalNormalize(
+            means={'S1RTC': torch.Tensor(S1RTC_MEAN), 'S2L2A': torch.Tensor(S2L2A_MEAN)},
+            stds={'S1RTC': torch.Tensor(S1RTC_STD), 'S2L2A': torch.Tensor(S2L2A_STD)}
+        )
 
-    # setup defines how the dataset should be split
-    # this could either be predefined from the dataset authors or
-    # done in a prescribed way if some or no splits are specified
     def setup(self, stage: str) -> None:
         """Set up datasets.
 
@@ -191,26 +242,11 @@ class SatChipDataModule(NonGeoDataModule):
         """
         assert stage in ['fit', 'validate', 'test']
         if stage in ['fit', 'validate']:
+
             dataset = SatChipDataset(split='train', transforms=self.training_transforms, **self.kwargs)
             train_indices, val_indices = group_shuffle_split(range(len(dataset)), test_size=0.2, random_state=0)
             self.train_dataset = Subset(dataset, train_indices)
             self.val_dataset = Subset(dataset, val_indices)
+            print(f'DATASETS: {len(self.train_dataset)}, {len(self.val_dataset)}')
         if stage in ['test']:
             self.test_dataset = SatChipDataset(split='val', **self.kwargs)
-
-
-if __name__ == '__main__':
-    chip_path = Path('chips')
-    dataset = SatChipDataset(chip_path, split='train')
-    # Testing dataset
-    print(len(dataset))
-    data = dataset[1]
-    f = dataset.plot(data, suptitle='Sample 1')
-    plt.show()
-    # Testing module
-    test_module = SatChipDataModule(batch_size=2, chip_path=chip_path)
-    test_module.setup('fit')
-    test_module.setup('test')
-    print(len(test_module.train_dataset))
-    print(len(test_module.val_dataset))
-    print(len(test_module.test_dataset))
