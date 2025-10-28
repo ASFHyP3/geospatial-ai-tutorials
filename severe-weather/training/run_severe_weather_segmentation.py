@@ -83,6 +83,7 @@ def main():
     datamodule = loader.SatChipDataModule(batch_size=4, timesteps=TIMESTEPS, modalities=MODALITIES, chip_path=CHIP_PATH)
 
     trainer.fit(model, datamodule=datamodule)
+    print('Script complete!')
 
 
 if __name__ == '__main__':
