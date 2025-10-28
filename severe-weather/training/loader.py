@@ -52,16 +52,21 @@ S2L2A_STD = [
 
 
 class SatChipDataset(NonGeoDataset):
-    def __init__(self, chip_path: Path, timesteps: int = 1, modalities=SATCHIP_MODALITIES, transforms=None, split='train'):
+    def __init__(
+        self,
+        chip_path: Path,
+        timesteps: int = 1,
+        modalities: tuple[str] = SATCHIP_MODALITIES,
+        transforms=A.NoOp(),
+        split: str = 'train'
+    ):
         assert timesteps > 0
         assert all(m in SATCHIP_MODALITIES for m in modalities)
 
-        if not transforms:
-            self.transforms = A.Compose([
-                ToTensorV2(),
-            ])
-        else:
-            self.transforms = transforms
+        self.transforms = A.Compose([
+            transforms,
+            ToTensorV2(),
+        ])
 
         split_path = chip_path / split
         label_path = split_path / 'LABEL'
@@ -228,7 +233,7 @@ class SatChipDataModule(NonGeoDataModule):
     def __init__(self, batch_size: int = 8, num_workers: int = 0, **kwargs: Any) -> None:
         super().__init__(SatChipDataset, batch_size, num_workers, **kwargs)
 
-        self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4(), ToTensorV2()])
+        self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4()])
 
         self.aug = MultimodalNormalize(
             means={'S1RTC': torch.Tensor(S1RTC_MEAN), 'S2L2A': torch.Tensor(S2L2A_MEAN)},

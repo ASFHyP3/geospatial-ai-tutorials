@@ -18,24 +18,8 @@ TIMESTEPS = 4
 
 
 def main():
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        dirpath='output/terramind_base_hwds/checkpoints/',
-        mode='max',
-        monitor='val/mIoU',
-        filename='best-mIoU',
-        save_weights_only=True,
-    )
+    datamodule = loader.SatChipDataModule(batch_size=4, timesteps=TIMESTEPS, modalities=MODALITIES, chip_path=CHIP_PATH)
 
-    trainer = pl.Trainer(
-        accelerator='auto',
-        strategy='auto',
-        num_nodes=1,
-        logger=True,
-        max_epochs=2,
-        log_every_n_steps=1,
-        callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
-        default_root_dir='output/terramind_base_hwds/',
-    )
     model = terratorch.tasks.SemanticSegmentationTask(
         model_factory='EncoderDecoderFactory',
         model_args={
@@ -47,7 +31,6 @@ def main():
             # https://github.com/IBM/terratorch/blob/main/examples/notebooks/TemporalWrapper.ipynb
             'backbone_use_temporal': True,
             'backbone_temporal_pooling': 'mean',
-
             # 'backbone_use_temporal': True,
             # 'backbone_temporal_pooling': 'diff',
             # 'backbone_temporal_subset_lengths': [1, 2],
@@ -80,7 +63,24 @@ def main():
         class_names=['no-damage', 'damage'],
     )
 
-    datamodule = loader.SatChipDataModule(batch_size=4, timesteps=TIMESTEPS, modalities=MODALITIES, chip_path=CHIP_PATH)
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+        dirpath='output/terramind_base_hwds/checkpoints/',
+        mode='max',
+        monitor='val/mIoU',
+        filename='best-mIoU',
+        save_weights_only=True,
+    )
+
+    trainer = pl.Trainer(
+        accelerator='auto',
+        strategy='auto',
+        num_nodes=1,
+        logger=True,
+        max_epochs=2,
+        log_every_n_steps=1,
+        callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
+        default_root_dir='output/terramind_base_hwds/',
+    )
 
     trainer.fit(model, datamodule=datamodule)
 
