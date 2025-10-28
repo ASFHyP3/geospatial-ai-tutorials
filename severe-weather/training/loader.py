@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import xarray as xr
 import zarr
-import terratorch
 from albumentations.pytorch import ToTensorV2
 from matplotlib.figure import Figure
 from torch.utils.data import Subset
@@ -54,6 +53,7 @@ S2L2A_STD = [
 
 class SatChipDataset(NonGeoDataset):
     def __init__(self, chip_path: Path, timesteps: int = 1, modalities=SATCHIP_MODALITIES, transforms=None, split='train'):
+        assert timesteps > 0
         assert all(m in SATCHIP_MODALITIES for m in modalities)
 
         if not transforms:
@@ -108,8 +108,6 @@ class SatChipDataset(NonGeoDataset):
         image_output = {}
         for mod in self.modalities:
             array = self._load_image_array(chip_paths[mod])
-
-            # C, T, H, W
             transformed = self._apply_transforms(array)
 
             image_output[mod] = transformed
@@ -125,7 +123,11 @@ class SatChipDataset(NonGeoDataset):
         else:
             flatten_temporal = rearrange(array, 'time channels height width -> height width (time channels)')
             transformed = self.transforms(image=flatten_temporal)['image']
-            unflattened = rearrange(transformed, '(time channels) height width -> channels time height width', time=self.timesteps)
+            unflattened = rearrange(
+                transformed,
+                '(time channels) height width -> channels time height width',
+                time=self.timesteps
+            )
 
             return unflattened
 
@@ -138,9 +140,8 @@ class SatChipDataset(NonGeoDataset):
     def _load_mask(self, mask_path: Path):
         ds = self._load_ds(mask_path)
         array = ds.bands.isel(time=0).values.astype(np.float32)
-        array = array.squeeze()
 
-        return array
+        return array.squeeze()
 
     def _load_ds(self, dataset_path: str | Path) -> xr.Dataset:
         store = zarr.storage.ZipStore(dataset_path, read_only=True)  # type: ignore
@@ -250,3 +251,20 @@ class SatChipDataModule(NonGeoDataModule):
             print(f'DATASETS: {len(self.train_dataset)}, {len(self.val_dataset)}')
         if stage in ['test']:
             self.test_dataset = SatChipDataset(split='val', **self.kwargs)
+
+
+if __name__ == '__main__':
+    chip_path = Path('chips')
+    dataset = SatChipDataset(chip_path, split='train')
+    # Testing dataset
+    print(len(dataset))
+    data = dataset[1]
+    f = dataset.plot(data, suptitle='Sample 1')
+    plt.show()
+    # Testing module
+    test_module = SatChipDataModule(batch_size=2, chip_path=chip_path)
+    test_module.setup('fit')
+    test_module.setup('test')
+    print(len(test_module.train_dataset))
+    print(len(test_module.val_dataset))
+    print(len(test_module.test_dataset))
