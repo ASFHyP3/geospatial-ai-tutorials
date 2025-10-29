@@ -16,6 +16,7 @@ from torchgeo.datamodules import NonGeoDataModule
 from torchgeo.datamodules.utils import group_shuffle_split
 from torchgeo.datasets import NonGeoDataset
 
+
 SATCHIP_MODALITIES = ('S2L2A', 'S1RTC', 'HLS')
 
 # TODO: check that these are reasonable
@@ -49,6 +50,22 @@ S2L2A_STD = [
     1434.261,
     1334.311,
 ]
+HLS_MEAN = [
+    775.229,
+    1080.992,
+    1228.585,
+    2497.202,
+    2204.213,
+    1610.832,
+]
+HLS_STD = [
+    1281.526,
+    1270.029,
+    1399.480,
+    1368.344,
+    1291.676,
+    1154.505,
+]
 
 
 class SatChipDataset(NonGeoDataset):
@@ -56,12 +73,11 @@ class SatChipDataset(NonGeoDataset):
         self,
         chip_path: Path,
         timesteps: int = 1,
-        modalities: tuple[str] = SATCHIP_MODALITIES,
+        modalities: tuple[str] | None = None,
         transforms=A.NoOp(),
         split: str = 'train'
     ):
         assert timesteps > 0
-        assert all(m in SATCHIP_MODALITIES for m in modalities)
 
         self.transforms = A.Compose([
             transforms,
@@ -76,17 +92,20 @@ class SatChipDataset(NonGeoDataset):
 
         chip_names = [make_chip_name(label_path) for label_path in label_path.glob('*.zarr.zip')]
         data_dir_paths = [
-            p for p in split_path.iterdir() if p.is_dir() and p.name in modalities
+            p for p in split_path.iterdir() if p.is_dir() and p.name in SATCHIP_MODALITIES
         ]
 
         chip_names = sorted(chip_names)
 
         self.chip_list = self._get_chip_list(chip_names, label_path, data_dir_paths)
         self.timesteps = timesteps
-        self.modalities = modalities
 
-        data_dir_names, mods = set(p.name for p in data_dir_paths), set(self.modalities)
-        assert mods == data_dir_names, f'Found modality without data directory ({data_dir_names - mods}).'
+        chip_dir_modalities = [p.name for p in data_dir_paths]
+        self.modalities = modalities or chip_dir_modalities
+
+        assert all(m in SATCHIP_MODALITIES for m in self.modalities)
+        mods, chip_dir = set(self.modalities), set(chip_dir_modalities)
+        assert mods.issubset(chip_dir), f'Missing modalities in chip_path {list(mods - chip_dir)}. Found in chip directory {list(chip_dir)}.'
 
     def _get_chip_list(self, chip_names, label_path, data_dir_paths):
         chip_list = []
@@ -121,7 +140,7 @@ class SatChipDataset(NonGeoDataset):
 
         return output
 
-    def _apply_transforms(self, array):
+    def _apply_transforms(self, array: np.ndarray):
         if self.timesteps == 1:
             array = rearrange(array.squeeze(), 'channels height width -> height width channels')
             return self.transforms(image=array)['image']
@@ -236,8 +255,16 @@ class SatChipDataModule(NonGeoDataModule):
         self.training_transforms = A.Compose([A.CenterCrop(width=256, height=256), A.D4()])
 
         self.aug = MultimodalNormalize(
-            means={'S1RTC': torch.Tensor(S1RTC_MEAN), 'S2L2A': torch.Tensor(S2L2A_MEAN)},
-            stds={'S1RTC': torch.Tensor(S1RTC_STD), 'S2L2A': torch.Tensor(S2L2A_STD)}
+            means={
+                'S1RTC': torch.Tensor(S1RTC_MEAN),
+                'S2L2A': torch.Tensor(S2L2A_MEAN),
+                'HLS': torch.Tensor(HLS_MEAN),
+            },
+            stds={
+                'S1RTC': torch.Tensor(S1RTC_STD),
+                'S2L2A': torch.Tensor(S2L2A_STD),
+                'HLS': torch.Tensor(HLS_STD),
+            }
         )
 
     def setup(self, stage: str) -> None:
