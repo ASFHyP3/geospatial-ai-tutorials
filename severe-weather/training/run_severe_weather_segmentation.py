@@ -10,11 +10,12 @@ warnings.filterwarnings('ignore')
 pl.seed_everything(64)
 
 MODALITIES = ['S2L2A', 'S1RTC']
-CHIP_PATH = Path('chips_timeseries')
-TIMESTEPS = 4
+CHIP_PATH = Path('chips')
+TIMESTEPS = 1
 
-# CHIP_PATH = Path('chips')
-# TIMESTEPS = 1
+# Uncomment to run model with temporal data
+# CHIP_PATH = Path('chips_timeseries')
+# TIMESTEPS = 4
 
 
 def main():
@@ -29,8 +30,12 @@ def main():
 
             # Notebook with documentation on Temporal Wrapper
             # https://github.com/IBM/terratorch/blob/main/examples/notebooks/TemporalWrapper.ipynb
-            'backbone_use_temporal': True,
-            'backbone_temporal_pooling': 'mean',
+
+            # Uncomment these 2 lines when running with `chips_timeseries` dataset and use averaging
+            # 'backbone_use_temporal': True,
+            # 'backbone_temporal_pooling': 'mean',
+
+            # An alternative to averaging temporally
             # 'backbone_use_temporal': True,
             # 'backbone_temporal_pooling': 'diff',
             # 'backbone_temporal_subset_lengths': [1, 2],

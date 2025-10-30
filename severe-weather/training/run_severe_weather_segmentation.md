@@ -63,7 +63,7 @@ chips/
 
 Note that within the `train` and `val` directories, each data type (`LABEL`, `S1RTC`, and `S2L2A`) has its own subdirectory. This folder also includes  `create_chips.py`, the script that created chips using the attached GeoTIFs.
 
-When working with a full dataset, you will also include a `test` folder with data to test the model. It is a good rule of thumb to split up your data so that ~80% of the data is used for training, ~10% of the dataset is used for validation, and ~10% of the data is used for testing.
+When working with a full dataset, you will also include a `test` folder with data to test the model. It is a good rule of thumb to split up your data so that ~80% of the data is used for training, ~10% of the dataset is used for validation, and \~10% of the data is used for testing.
 
 You can load the data in Python using `satchip.util.load_chip`, as demonstrated with the following code snippet.
 ```python
@@ -71,19 +71,28 @@ from satchip import utils
 chip = utils.load_chip('chips/train/S1RTC/swathID_1260_swathDate_2019-06-17_464U_867L_2_0_S1RTC.zarr.zip')
 ```
 
+There is also another example dataset that contains multple timesteps.
+```bash
+curl -L "https://drive.usercontent.google.com/download?id={12eJsKXlPa4kF1Gt5p887l1J_yX-Nr2nO}&confirm=xxx" -o chips_timeseries.zip
+unzip chips_timeseries.zip
+```
+The `chips_timeseries` dataset has a similar layout to `chips` but each zarr has multiple samples in the time dimension.
+
 ### Data loader
 TorchGeo uses [dataset classes](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#geospatial-datasets) to handle geospatial and non-geospatial data. A `DataSet`stores the data and their corresponding labels, while the `DataModule` wraps around the `DataSet` to access and transform and the `DataLoader` to batch and shuffle the data. The `DataModule` is then utilized by the Pytorch `Trainer` object to train the model.
 
 The `SatChip` dataset class is specifically designed for working with prepared SatChip data. It inherits TerraTorch's [`NonGeoDataset`](https://torchgeo.readthedocs.io/en/stable/api/datasets.html#non-geospatial-datasets) base class. Both the SatChip Dataset and DataModule code is in a [`loader.py`](loader.py).
 
-Using the `SatChipDataModule` function, you can initialize the dataset by providing Path object path to the chipped data directory. Note that this data should be organized with the same structure outlined in the [dataset organization secton](#dataset-organization).
+Using the `SatChipDataModule` class, you can initialize the dataset by providing Path object path to the chipped data directory and a batch size (how many samples to process at once during training). Note that this data should be organized with the same structure outlined in the [dataset organization secton](#dataset-organization).
 ```python
 import loader
 
 datamodule = loader.SatChipDataModule(chip_path=chip_path, batch_size=2)
 ```
 This `DataModule` object can then be passed to the Pytorch `Trainer` object for training.
-We recommend using the [`TerraMind`](https://huggingface.co/ibm-esa-geospatial/TerraMind-1.0-base) when working with `SatChip` Data. You can check out the suggested model parameters in [`train.py`](train.py).
+We recommend using the [`TerraMind`](https://huggingface.co/ibm-esa-geospatial/TerraMind-1.0-base) when working with `SatChip` Data. You can check out the example model parameters in [`run_severe_weather_segmentation.py`](run_severe_weather_segmentation.py).
+
+If using `chips_timeseries` dataset [`run_severe_weather_segmentation.py`](run_severe_weather_segmentation.py) can be modified by changing the chip_path to `chips_timeseries` and setting `timesteps` to `4`. There are also 2 model parameters that need to be added to the `model_args`. All these can be added by uncommenting the specified code in the script.
 
 ### Setup
 If working on NAS for the first time, check out [this documentation](NAS/initial_setup.md) outlining setting up your NAS environment for the first time. On NAS, the pre-created `terramind` conda environment can be activated with
