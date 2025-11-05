@@ -141,23 +141,25 @@ class SatChipDataset(NonGeoDataset):
         return output
 
     def _apply_transforms(self, array: np.ndarray):
-        if self.timesteps == 1:
+        print(array.shape)
+        if len(array.shape) == 3:
             array = rearrange(array.squeeze(), 'channels height width -> height width channels')
             return self.transforms(image=array)['image']
-        else:
+        elif len(array.shape) == 4:
+            timesteps = array.shape[0]
             flatten_temporal = rearrange(array, 'time channels height width -> height width (time channels)')
             transformed = self.transforms(image=flatten_temporal)['image']
             unflattened = rearrange(
                 transformed,
                 '(time channels) height width -> channels time height width',
-                time=self.timesteps
+                time=timesteps
             )
 
             return unflattened
 
     def _load_image_array(self, chip_path: Path) -> torch.Tensor:
         ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=slice(0, self.timesteps)).values.astype(np.float32)
+        array = ds.bands.values.astype(np.float32)
 
         return array
 
@@ -244,6 +246,7 @@ class MultimodalNormalize(Callable):
                 )
                 raise Exception(msg)
 
+            breakpoint()
             batch['image'][m] = (image - means) / stds
         return batch
 
