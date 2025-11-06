@@ -2,8 +2,7 @@
 
 1. Initial login
 1. Setup SSH pass-through
-1. Setup Conda configuration
-1. Setup HuggingFace configuration
+1. (Optional) Setup Conda configuration
 
 ## 1. Initial login
 On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login into the Pleiades Front End (PFE). To set your system password, you'll need to contact [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html). [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
