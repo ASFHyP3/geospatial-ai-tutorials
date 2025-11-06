@@ -11,7 +11,7 @@ On initial login, you will need to set your system password, login to the Secure
 > [!WARNING]
 > You must at some point log in to Pleiades Front End (PFE) to create your home directory, which is required to run jobs on NAS.
 
-To log into `pfe` first you must ssh into a secure front end. Replace `username` with your username on NAS. To choose a different front end `sfe6` can be changed to \[6-8\].
+To log into `pfe` first you must ssh into a secure front end. Replace `username` with your username on NAS. You can also choose a different front end if one is down by changing the 6 in `sfe6` to a number in the range \[6-8\].
 ```bash
 ssh username@sfe6.nas.nasa.gov
 ```
