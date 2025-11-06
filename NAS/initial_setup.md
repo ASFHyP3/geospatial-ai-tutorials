@@ -9,7 +9,16 @@
 On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login into the Pleiades Front End (PFE). To set your system password, you'll need to contact [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html). [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
 
 > [!WARNING]
-> You must first log in to Pleiades Front End (PFE) to create your home directory, which is required to run jobs on NAS.
+> You must at some point log in to Pleiades Front End (PFE) to create your home directory, which is required to run jobs on NAS.
+
+To log into pfe first you must ssh into a SFE. `username` is your username on NAS. 6 in `sfe6` can be be \[6-8\] to log into different SFE's.
+```bash
+ssh username@sfe6.nas.nasa.gov
+```
+Then ssh into `pfe`.
+```bash
+ssh pfe
+```
 
 ## 2. SSH Pass-Through
 NAS is configured to have a front-end login system, the Secure Front End (SFE), that is then used to SSH into the NAS compute resources, such as the PFE. Setting up SSH pass-through allows you to login into compute resources, such as the PFE, in a single step.
@@ -21,7 +30,7 @@ NAS is configured to have a front-end login system, the Secure Front End (SFE), 
 > [!TIP]
 > If you are prompted multiple times wait for your RSA token to refresh to a new one. Be careful however — failing more than 3 times will lock your RSA token.
 
-If you run into any issues with your initial setup just call [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html) and they will help you work through them.
+If you run into any issues with your initial setup just call [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html) and they will help you work through them. There is also a [troubleshooting](https://www.nas.nasa.gov/hecc/support/kb/common-login-failures-or-issues_162.html) page that has common issues.
 
 ## 3. (Optional) Conda settings
 NAS comes with pre-built conda environments that can be used for processing (see the full list [here](https://www.nas.nasa.gov/hecc/support/kb/machine-learning-overview_572.html)). If none of the provided environments fit your needs, you can install your own environments after some setup.
