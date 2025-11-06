@@ -6,7 +6,7 @@
 1. Setup HuggingFace configuration
 
 ## 1. Initial login
-On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login into the Pleiades Front End (PFE). To set your system password, you'll need to contact NAS user support. [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
+On initial login, you will need to set your system password, login to the Secure Front End (SFE), and login into the Pleiades Front End (PFE). To set your system password, you'll need to contact [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html). [This tutorial](https://www.nas.nasa.gov/hecc/support/kb/enabling-your-rsa-securid-soft-token-%28mobile-app%29_538.html#) has the details.
 
 > [!WARNING]
 > You must log into Pleiades Front End (PFE) to create your home directory which is required to run jobs on NAS.
@@ -20,6 +20,8 @@ NAS is configured to have a front-end login system, the Secure Front End (SFE), 
 
 > [!TIP]
 > If you are prompted multiple times wait for your RSA token to refresh to a new one. Be careful however — failing more than 3 times will lock your RSA token.
+
+If you run into any issues with your initial setup just call [NAS user support](https://www.nas.nasa.gov/hecc/support/user_support.html) and the will help you work through your issues.
 
 ## 3. (Optional) Conda settings
 NAS comes with pre-built conda environments that can be used for processing (see the full list [here](https://www.nas.nasa.gov/hecc/support/kb/machine-learning-overview_572.html)). If none of the provided environments fit your needs, you can install your own environments after some setup.
