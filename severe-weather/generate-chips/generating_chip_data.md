@@ -21,8 +21,7 @@ With the `severe-weather` conda environment activated, the rasters can be genera
 python generate_severe_weather_rasters.py
 ```
 
-This script downloads the [Hail and Wind Damage Swath (HWDS)](https://github.com/jrbell1/hwds_db) dataset and turns all the
-swaths during Sentinel 1 into 10m rasters.
+This script downloads the [Hail and Wind Damage Swath (HWDS)](https://github.com/jrbell1/hwds_db) dataset and takes all the damage swaths that occurred during Sentinel 1 mission (2015-Present) and turns them into 10m label rasters.
 
 ## 3. Generate Label Chips from Rasters
 
