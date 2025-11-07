@@ -9,7 +9,7 @@ The data are in `zarr` format and prepared using [SatChip](https://github.com/fo
 * `S1RTC`: Sentinel-1 Radiometric Terrain Corrected (RTC) data created using [ASF's HyP3 on-demand platform](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
 * `HYP3S1RTC`: Sentinel-1 Radiometric Terrain Corrected (RTC) data created using [ASF's HyP3 on-demand platform](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
 
-SatChip prepares data labels and satellite images into 264x264 sample files that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files.  [Here](generating_chip_data.md) is a tutorial on generating your own chip data.
+SatChip prepares data labels and satellite images into 264x264 image arrays that follow the TerraMind extension of the MajorTom specification and are saved as `zarr.zip` files. You can walk through [this tutorial](generating_chip_data.md) to generate your own chip data.
 
 Below is an example of metadata associated with the Sentinel-1 RTC chip `swathID_1260_swathDate_2019-06-17_464U_867L_2_0_S1RTC.zarr.zip`:
 ```
