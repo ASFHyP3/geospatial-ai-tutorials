@@ -19,7 +19,7 @@ TIMESTEPS = 4
 
 
 def main():
-    datamodule = loader.SatChipDataModule(batch_size=4, timesteps=TIMESTEPS, modalities=MODALITIES, chip_path=CHIP_PATH)
+    datamodule = loader.SatChipDataModule(batch_size=1, timesteps=TIMESTEPS, modalities=MODALITIES, chip_path=CHIP_PATH)
 
     model = terratorch.tasks.SemanticSegmentationTask(
         model_factory='EncoderDecoderFactory',

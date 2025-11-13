@@ -137,6 +137,9 @@ class SatChipDataset(NonGeoDataset):
             image_output[mod] = transformed
 
         output = {'mask': label, 'image': image_output}
+        print('s1: ', output['image']['S1RTC'].shape)
+        print('s2: ', output['image']['S2L2A'].shape)
+        breakpoint()
 
         return output
 
@@ -246,7 +249,6 @@ class MultimodalNormalize(Callable):
                 )
                 raise Exception(msg)
 
-            breakpoint()
             batch['image'][m] = (image - means) / stds
         return batch
 
