@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+from tqdm import tqdm
 from einops import rearrange
 
 import albumentations as A
@@ -18,6 +20,7 @@ from torchgeo.datasets import NonGeoDataset
 
 
 SATCHIP_MODALITIES = ('S2L2A', 'S1RTC', 'HLS')
+PRESCISION = np.float16
 
 # TODO: check that these are reasonable
 S1RTC_MEAN = [-10.93, -17.329]
@@ -78,6 +81,7 @@ class SatChipDataset(NonGeoDataset):
         split: str = 'train'
     ):
         assert timesteps > 0
+        self.timesteps = timesteps
 
         self.transforms = A.Compose([
             transforms,
@@ -87,18 +91,9 @@ class SatChipDataset(NonGeoDataset):
         split_path = chip_path / split
         label_path = split_path / 'LABEL'
 
-        def make_chip_name(label_path):
-            return '_'.join(label_path.name.split('_')[-4:]).split('.')[0]
-
-        chip_names = [make_chip_name(label_path) for label_path in label_path.glob('*.zarr.zip')]
         data_dir_paths = [
             p for p in split_path.iterdir() if p.is_dir() and p.name in SATCHIP_MODALITIES
         ]
-
-        chip_names = sorted(chip_names)
-
-        self.chip_list = self._get_chip_list(chip_names, label_path, data_dir_paths)
-        self.timesteps = timesteps
 
         chip_dir_modalities = [p.name for p in data_dir_paths]
         self.modalities = modalities or chip_dir_modalities
@@ -107,36 +102,74 @@ class SatChipDataset(NonGeoDataset):
         mods, chip_dir = set(self.modalities), set(chip_dir_modalities)
         assert mods.issubset(chip_dir), f'Missing modalities in chip_path {list(mods - chip_dir)}. Found in chip directory {list(chip_dir)}.'
 
-    def _get_chip_list(self, chip_names, label_path, data_dir_paths):
-        chip_list = []
+        samples = self._get_samples(label_path, data_dir_paths)
 
-        for chip_name in chip_names:
-            chip = {'LABEL': next(label_path.glob(f'*{chip_name}.zarr.zip'))}
-            for data_dir in data_dir_paths:
-                modality = data_dir.name
-                data_path = next(data_dir.glob(f'*{chip_name}_{modality}.zarr.zip'))
-                chip[modality] = data_path
-            chip_list.append(chip)
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            loaded_samples = list(tqdm(executor.map(self._load_sample, samples), total=len(samples)))
 
-        return chip_list
+        self.samples = loaded_samples
+
+    def _get_samples(self, label_path: Path, data_dir_paths: dict[str, Path]) -> dict[str, Any]:
+        def make_sample_name(label_sample_path):
+            return label_sample_path.name.split('.zarr.zip')[0]
+
+        sample_paths = {
+            make_sample_name(label_path): label_path for label_path in label_path.glob('*.zarr.zip')
+        }
+        modality_dirs = {
+            data_dir_path.name: {
+                make_sample_name(sample_path): sample_path for sample_path in data_dir_path.glob(f'*_{data_dir_path.name}.zarr.zip')
+            } for data_dir_path in data_dir_paths
+        }
+
+        sample_names = sorted(sample_paths.keys())
+        loaded_samples = []
+
+        for sample_name in sample_names:
+            sample = {
+                'LABEL': sample_paths[sample_name]
+            }
+
+            for modality, modality_files in modality_dirs.items():
+                modality_sample = f'{sample_name}_{modality}'
+
+                if modality_sample in modality_files:
+                    sample[modality] = modality_files[modality_sample]
+
+            assert all(modality in sample for modality in modality_dirs.keys()), f'Missing modality for {sample_name}.'
+            loaded_samples.append(sample)
+
+        return loaded_samples
 
     def __len__(self):
-        return len(self.chip_list)
+        return len(self.samples)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        chip_paths = self.chip_list[index]
-
-        label_array = self._load_mask(chip_paths['LABEL'])
+        sample_data = self.samples[index]
+        label_array = sample_data['LABEL']
         label = self.transforms(image=label_array)['image']
 
         image_output = {}
         for mod in self.modalities:
-            array = self._load_image_array(chip_paths[mod])
+            array = sample_data[mod]
             transformed = self._apply_transforms(array)
 
             image_output[mod] = transformed
 
         output = {'mask': label, 'image': image_output}
+
+        return output
+
+    def _load_sample(self, sample_paths: dict) -> dict[str, Any]:
+        label_array = self._load_mask(sample_paths['LABEL'])
+        output = {'LABEL': label_array}
+
+        for mod in self.modalities:
+            array = self._load_image_array(sample_paths[mod])
+
+            output[mod] = array
+
+        assert all(not np.isnan(array).any() for array in output.values()), f'Found nan value in {sample_paths}.'
 
         return output
 
@@ -155,15 +188,15 @@ class SatChipDataset(NonGeoDataset):
 
             return unflattened
 
-    def _load_image_array(self, chip_path: Path) -> torch.Tensor:
-        ds = self._load_ds(chip_path)
-        array = ds.bands.isel(time=slice(0, self.timesteps)).values.astype(np.float32)
+    def _load_image_array(self, sample_path: Path) -> torch.Tensor:
+        ds = self._load_ds(sample_path)
+        array = ds.bands.isel(time=slice(0, self.timesteps)).values.astype(PRESCISION)
 
         return array
 
     def _load_mask(self, mask_path: Path):
         ds = self._load_ds(mask_path)
-        array = ds.bands.isel(time=0).values.astype(np.float32)
+        array = ds.bands.isel(time=0).values.astype(PRESCISION)
 
         return array.squeeze()
 
