@@ -1,3 +1,9 @@
+Download the shapfile polygon with this link
+
+```
+curl TODO/hls_hwds_polygon
+```
+
 The first step is to generate the label rasters based on the example shapes using `generate_severe_weather_rastters.py`
 
 ```bash
