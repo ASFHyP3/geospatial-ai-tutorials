@@ -1,0 +1,32 @@
+name: torchgeo
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+
+  # Jupyter
+  - jupyter
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+
+  # Data manipulation
+  - geopandas
+  - numpy
+
+  # Visualization
+  - matplotlib
+  - plotly
+
+  # AI
+  - terratorch
+  - tensorboard
+
+  # Utilities
+  - requests
+  - tqdm
+  - python-dotenv
+  - gdown
+  - zarr
+  - earthaccess
