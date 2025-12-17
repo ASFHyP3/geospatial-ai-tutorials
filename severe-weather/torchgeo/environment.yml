@@ -31,3 +31,4 @@ dependencies:
   - gdown
   - zarr
   - earthaccess
+  - ruff
