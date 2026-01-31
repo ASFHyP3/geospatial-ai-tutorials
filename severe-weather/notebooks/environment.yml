@@ -14,6 +14,7 @@ dependencies:
   # Data manipulation
   - geopandas
   - numpy
+  - gdal
 
   # Visualization
   - matplotlib
