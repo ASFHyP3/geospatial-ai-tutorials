@@ -1,0 +1,20 @@
+name: hail_processing
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - matplotlib
+  - cartopy
+  - shapely
+  - geopandas
+  - rasterio
+  - scikit-learn
+  - albumentations
+  - gdown
+  - earthaccess
+  - pip
+  - pip:
+      - terratorch
