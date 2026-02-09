@@ -63,38 +63,39 @@ def plot_chips(gdf, chips_df, fmasks_merged):
 
         # plot chip extents
         base = ".".join(os.path.basename(fmask_merged).split(".")[0:6])
+        print(base)
         ok = chips_df["root"] == base
         these_chips = chips_df.loc[ok]
         print("len of these_chips:", len(these_chips))
 
-        if len(these_chips) > 0:
-            for _, chip in these_chips.iterrows():
-                ds = rasterio.open(chip["MASK"])
-                chip_bounds = ds.bounds
-                chip_geom = box(
-                    chip_bounds.left,
-                    chip_bounds.bottom,
-                    chip_bounds.right,
-                    chip_bounds.top,
-                )
-                ds.close()
-
-                if (chip["pct_cf"] > 95) & (chip["pct_ev"] > 1):
-                    chip_color, chip_width, chip_z = "green", 3, 2
-                else:
-                    chip_color, chip_width, chip_z = "yellow", 1, 1
-
-                ax.add_geometries(
-                    [chip_geom],
-                    edgecolor=chip_color,
-                    linewidth=chip_width,
-                    alpha=1,
-                    zorder=chip_z,
-                    facecolor="none",
-                    crs=crs_pc,
-                )
-        else:
+        if len(these_chips) <= 0:
             print("no chips")
+
+        for _, chip in these_chips.iterrows():
+            ds = rasterio.open(chip["MASK"])
+            chip_bounds = ds.bounds
+            chip_geom = box(
+                chip_bounds.left,
+                chip_bounds.bottom,
+                chip_bounds.right,
+                chip_bounds.top,
+            )
+            ds.close()
+
+            if (chip["pct_cf"] > 95) & (chip["pct_ev"] > 1):
+                chip_color, chip_width, chip_z = "green", 3, 2
+            else:
+                chip_color, chip_width, chip_z = "yellow", 1, 1
+
+            ax.add_geometries(
+                [chip_geom],
+                edgecolor=chip_color,
+                linewidth=chip_width,
+                alpha=1,
+                zorder=chip_z,
+                facecolor="none",
+                crs=crs_pc,
+            )
 
         ax.set_extent(full_extent, crs=crs_pc)
         plt.show()

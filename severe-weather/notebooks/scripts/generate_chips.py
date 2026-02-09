@@ -1,7 +1,3 @@
-# Shell command for installing cartopy (cannot be used as an import)
-# !pip install cartopy
-
-# Standard library
 import os
 from pathlib import Path
 import glob
@@ -9,7 +5,6 @@ import zipfile
 import logging
 import warnings
 
-# Scientific computing
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -21,7 +16,6 @@ import gdown
 import earthaccess
 
 import get_swath
-import merge_data
 import chip_data
 import select_chips
 import calculate_stats
@@ -49,8 +43,8 @@ def main():
 
     fmasks_merged = glob.glob(os.path.join("hwds/MERGE", "*Fmask.tif"))
 
-    hls_merged, to_stack = merge_data.merge_data(fmasks_merged)
-    chips_dict = chip_data.chip_data(hls_merged)
+    to_stack = ["B", "G", "R", "N", "SW1", "SW2"]
+    chips_dict = chip_data.chip_data(fmasks_merged, to_stack)
 
     chips_df = select_chips.select_chips(chips_dict)
 
