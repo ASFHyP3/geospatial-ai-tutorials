@@ -12,31 +12,45 @@ import terratorch
 from terratorch.datamodules import GenericNonGeoSegmentationDataModule
 
 
-chip_means = [np.float32(430.11542), np.float32(733.83105), np.float32(736.5215), np.float32(2645.7449), np.float32(2494.3672), np.float32(1499.4843)]
-chip_stds = [np.float32(184.36305), np.float32(218.96432), np.float32(346.92596), np.float32(822.3877), np.float32(688.9506), np.float32(624.86896)]
+chip_means = [
+    np.float32(430.11542),
+    np.float32(733.83105),
+    np.float32(736.5215),
+    np.float32(2645.7449),
+    np.float32(2494.3672),
+    np.float32(1499.4843),
+]
+chip_stds = [
+    np.float32(184.36305),
+    np.float32(218.96432),
+    np.float32(346.92596),
+    np.float32(822.3877),
+    np.float32(688.9506),
+    np.float32(624.86896),
+]
 
 
 def plot_sample(sample):
-    data = sample['image'].cpu().numpy()
-    mask = sample['mask'].cpu().numpy()
+    data = sample["image"].cpu().numpy()
+    mask = sample["mask"].cpu().numpy()
 
     # Scaling data.
     if data.mean() < 1:
         data = data * 10000
     data = (data.clip(0, 2000) / 2000) * 255
-    rgb = data[[2, 1, 0]].astype(np.uint8).transpose(1,2,0)
+    rgb = data[[2, 1, 0]].astype(np.uint8).transpose(1, 2, 0)
 
     fig, ax = plt.subplots(1, 3, figsize=(12, 4))
     ax[0].imshow(rgb)
-    ax[0].set_title('Image')
-    ax[0].axis('off')
-    ax[1].imshow(mask, vmin=-1, vmax=1, interpolation='nearest')
-    ax[1].set_title('Mask')
-    ax[1].axis('off')
+    ax[0].set_title("Image")
+    ax[0].axis("off")
+    ax[1].imshow(mask, vmin=-1, vmax=1, interpolation="nearest")
+    ax[1].set_title("Mask")
+    ax[1].axis("off")
     ax[2].imshow(rgb)
-    ax[2].imshow(mask, vmin=-1, vmax=1, interpolation='nearest', alpha=0.5)
-    ax[2].set_title('Mask on Image')
-    ax[2].axis('off')
+    ax[2].imshow(mask, vmin=-1, vmax=1, interpolation="nearest", alpha=0.5)
+    ax[2].set_title("Mask on Image")
+    ax[2].axis("off")
     fig.tight_layout()
     plt.show()
 
@@ -48,24 +62,20 @@ def main():
         num_workers=2,
         num_classes=2,
         rgb_indices=[2, 1, 0],
-
         # TODO: Define the data and label paths
-        train_data_root='hwds/CHIPS_TM',
-        train_label_data_root='hwds/CHIPS_TM',
-        val_data_root='hwds/CHIPS_TM',
-        val_label_data_root='hwds/CHIPS_TM',
-        test_data_root='hwds/CHIPS_TM',
-        test_label_data_root='hwds/CHIPS_TM',
-
+        train_data_root="hwds/CHIPS_TM",
+        train_label_data_root="hwds/CHIPS_TM",
+        val_data_root="hwds/CHIPS_TM",
+        val_label_data_root="hwds/CHIPS_TM",
+        test_data_root="hwds/CHIPS_TM",
+        test_label_data_root="hwds/CHIPS_TM",
         # TODO: Define the split files
-        train_split='hwds/SPLITS/train.txt',
-        val_split='hwds/SPLITS/val.txt',
-        test_split='hwds/SPLITS/test.txt',
-
+        train_split="hwds/SPLITS/train.txt",
+        val_split="hwds/SPLITS/val.txt",
+        test_split="hwds/SPLITS/test.txt",
         # TODO: Define suffixs
-        img_grep='*.BANDS.tif',
-        label_grep='*.MASK.tif',
-
+        img_grep="*.BANDS.tif",
+        label_grep="*.MASK.tif",
         # TODO: Update the standardization values. They need to be the same length as the data.
         #  You can define a constant_scale that applies a multiplicator in case the data does not align with the the standardization values.
         # constant_scale=None,
@@ -74,15 +84,13 @@ def main():
         # fyi TerraMind pretraining values (assuming data in range 0-10000)
         # S2L2A means: [1390.458, 1503.317, 1718.197, 1853.910, 2199.100, 2779.975, 2987.011, 3083.234, 3132.220, 3162.988, 2424.884, 1857.648]
         # S2L2A stds: [2106.761, 2141.107, 2038.973, 2134.138, 2085.321, 1889.926, 1820.257, 1871.918, 1753.829, 1797.379, 1434.261, 1334.311]
-
         # albumentations supports shared transformations and can handle multimodal inputs.
         train_transform=[
-            albumentations.D4(), # Random flips and rotation
+            albumentations.D4(),  # Random flips and rotation
             albumentations.pytorch.transforms.ToTensorV2(),
         ],
         val_transform=None,  # Fallback to ToTensor
         test_transform=None,
-
         no_label_replace=-1,  # Replace NaN labels. defaults to -1 which is ignored in the loss and metrics.
         no_data_replace=0,  # Replace NaN data
     )
@@ -106,9 +114,9 @@ def main():
     # By default, TerraTorch saves the model with the best validation loss. You can overwrite this by defining a custom ModelCheckpoint, e.g., saving the model with the highest validation mIoU.
     # TODO Optionally adjust the checkpoint
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        dirpath='output/terramind_hwds_base',
+        dirpath="output/terramind_hwds_base",
         mode="max",
-        monitor="val/mIoU", # Variable to monitor
+        monitor="val/mIoU",  # Variable to monitor
         filename="best-mIoU",
         save_weights_only=True,
     )
@@ -117,15 +125,15 @@ def main():
     trainer = pl.Trainer(
         accelerator="auto",
         strategy="auto",
-        devices=1, # Deactivate multi-gpu because it often fails in notebooks
+        devices=1,  # Deactivate multi-gpu because it often fails in notebooks
         precision="16-mixed",  # Speed up training with half precision, delete for full precision training.
         num_nodes=1,
         logger=True,  # Uses TensorBoard by default
-        max_epochs=100, # For demos
+        max_epochs=100,  # For demos
         log_every_n_steps=1,
         callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
         # TODO Define output dir
-        default_root_dir='output/terramind_hwds_base',
+        default_root_dir="output/terramind_hwds_base",
     )
 
     # Segmentation mask that build the model and handles training and validation steps.
@@ -139,46 +147,47 @@ def main():
             "backbone_modalities": ["S2L2A"],
             # TODO define the input bands. This is only needed because you need to select a subset of the pre-training bands for Burn Scars.
             #  Check the names in the "List of pre-trained bands" in the docs.
-            "backbone_bands": {"S2L2A": ["BLUE","GREEN","RED","NIR_NARROW","SWIR_1","SWIR_2"]},
-
+            "backbone_bands": {
+                "S2L2A": ["BLUE", "GREEN", "RED", "NIR_NARROW", "SWIR_1", "SWIR_2"]
+            },
             # Necks
             "necks": [
                 {
                     "name": "SelectIndices",
-                    "indices": [2, 5, 8, 11] # indices for terramind_v1_base
+                    "indices": [2, 5, 8, 11],  # indices for terramind_v1_base
                     # "indices": [5, 11, 17, 23] # indices for terramind_v1_large
                 },
-                {"name": "ReshapeTokensToImage",
-                 "remove_cls_token": False},  # TerraMind is trained without CLS token, which neads to be specified.
-                {"name": "LearnedInterpolateToPyramidal"}  # Some decoders like UNet or UperNet expect hierarchical features. Therefore, we need to learn a upsampling for the intermediate embedding layers when using a ViT like TerraMind.
+                {
+                    "name": "ReshapeTokensToImage",
+                    "remove_cls_token": False,
+                },  # TerraMind is trained without CLS token, which neads to be specified.
+                {
+                    "name": "LearnedInterpolateToPyramidal"
+                },  # Some decoders like UNet or UperNet expect hierarchical features. Therefore, we need to learn a upsampling for the intermediate embedding layers when using a ViT like TerraMind.
             ],
-
             # Decoder
             "decoder": "UNetDecoder",
-            #"decoder_channels": [256, 128, 64, 32],
-            "decoder_channels" : [512,256,128,64],
-
+            # "decoder_channels": [256, 128, 64, 32],
+            "decoder_channels": [512, 256, 128, 64],
             # Head
             "head_dropout": 0.1,
             "num_classes": 2,
         },
-
         loss="dice",  # We recommend dice for binary tasks and ce for tasks with multiple classes.
         optimizer="AdamW",
         lr=2e-5,  # The optimal learning rate varies between datasets, we recommend testing different once between 1e-5 and 1e-4. You can perform hyperparameter optimization using terratorch-iterate.
         ignore_index=-1,
-        freeze_backbone=False, # Only used to speed up fine-tuning in this demo, we highly recommend fine-tuning the backbone for the best performance.
+        freeze_backbone=False,  # Only used to speed up fine-tuning in this demo, we highly recommend fine-tuning the backbone for the best performance.
         freeze_decoder=False,  # Should be false in most cases as the decoder is randomly initialized.
         plot_on_val=True,  # Plot predictions during validation steps
-        class_names=["Others", "Damage"]  # optionally define class names
+        class_names=["Others", "Damage"],  # optionally define class names
     )
 
     # checking datasets testing split size
 
     datamodule.setup("train")
     train_dataset = datamodule.train_dataset
-    print('train_dataset:',len(train_dataset))
-
+    print("train_dataset:", len(train_dataset))
 
     # Training
     trainer.fit(model, datamodule=datamodule)
@@ -197,11 +206,10 @@ def main():
         model_args=model.hparams.model_args,
     )
 
-
     datamodule.setup("test")
     test_dataset = datamodule.test_dataset
     test_loader = datamodule.test_dataloader()
-    print('test_dataset:',len(test_dataset))
+    print("test_dataset:", len(test_dataset))
 
     with torch.no_grad():
         batch = next(iter(test_loader))
@@ -226,5 +234,5 @@ def main():
     # Note: This demo only trains for 5 epochs by default, which does not result in good predictions.
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
