@@ -129,7 +129,7 @@ def main():
         precision="16-mixed",  # Speed up training with half precision, delete for full precision training.
         num_nodes=1,
         logger=True,  # Uses TensorBoard by default
-        max_epochs=100,  # For demos
+        max_epochs=100,
         log_every_n_steps=1,
         callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
         # TODO Define output dir
@@ -168,7 +168,7 @@ def main():
             # Decoder
             "decoder": "UNetDecoder",
             # "decoder_channels": [256, 128, 64, 32],
-            "decoder_channels": [512, 256, 128, 64],
+            "decoder_channels": [256, 128, 64, 32],
             # Head
             "head_dropout": 0.1,
             "num_classes": 2,

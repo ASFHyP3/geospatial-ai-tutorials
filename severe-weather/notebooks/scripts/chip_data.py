@@ -8,41 +8,17 @@ from rasterio.windows import Window
 
 
 def chip_data(fmasks_merged, to_stack):
-    # use fmasks as templates and do stuff
-    # keep track of all eventual tiles
-    chips_dict = {"Fmask": [], "MASK": [], "EVENT": [], "BANDS": [], "QC": []}
 
     p_chips = "hwds/CHIPS"
+
     if not os.path.isdir(p_chips):
         print("making:", p_chips)
         os.makedirs(p_chips, exist_ok=True)
+
+    chips_dicts = []
+
     for fmask_merged in fmasks_merged:
-        if "L30" in fmask_merged:
-            bands = {
-                "B": "B02",
-                "G": "B03",
-                "R": "B04",
-                "N": "B05",
-                "SW1": "B06",
-                "SW2": "B07",
-                "Fmask": "Fmask",
-                "EVENT": "EVENT",
-                "QC": "QC",
-                "MASK": "MASK",
-            }
-        else:
-            bands = {
-                "B": "B02",
-                "G": "B03",
-                "R": "B04",
-                "N": "B08",
-                "SW1": "B11",
-                "SW2": "B12",
-                "Fmask": "Fmask",
-                "EVENT": "EVENT",
-                "QC": "QC",
-                "MASK": "MASK",
-            }
+        bands = _get_bands(is_l30="L30" in fmask_merged)
 
         hls_merged = {}
 
@@ -78,7 +54,6 @@ def chip_data(fmasks_merged, to_stack):
         hls_merged["BANDS"] = f_bands
 
         # create chips
-        chip_size = 512
         to_tile = {
             "QC": hls_merged["QC"],
             "Fmask": hls_merged["Fmask"],
@@ -87,51 +62,25 @@ def chip_data(fmasks_merged, to_stack):
             "BANDS": hls_merged["BANDS"],
         }
 
-        for tt in to_tile.keys():
-            print("chips for:", to_tile[tt])
+        for tile_key, tile in to_tile.items():
+            chip_dict = _chip_tile(tile_key, tile, chips_path=p_chips)
 
-            with rasterio.open(to_tile[tt]) as src:
-                meta = src.meta.copy()
-                h_tiles = src.width // chip_size
-                v_tiles = src.height // chip_size
+            chips_dicts.append(chip_dict)
 
-                for ii in range(v_tiles + 1):
-                    for jj in range(h_tiles + 1):
-                        x_off = jj * chip_size
-                        y_off = ii * chip_size
-                        width = min(chip_size, src.width - x_off)
-                        height = min(chip_size, src.height - y_off)
+    # use fmasks as templates and do stuff
+    # keep track of all eventual tiles
 
-                        # skip bad ones
-                        if width != chip_size or height != chip_size:
-                            print("bad chip, skip:", width, height)
-                            continue
+    total_chips = {
+        "Fmask": [],
+        "MASK": [],
+        "EVENT": [],
+        "BANDS": [],
+        "QC": []
+    }
 
-                        window = Window(x_off, y_off, width, height)
-                        meta.update(
-                            {
-                                "width": width,
-                                "height": height,
-                                "transform": src.window_transform(window),
-                            }
-                        )
-
-                        ii_str = "%3.3d" % ii
-                        jj_str = "%3.3d" % jj
-
-                        tile_number = ".".join([ii_str, jj_str])
-
-                        f_chip = os.path.basename(to_tile[tt]).replace(
-                            tt + ".tif", tile_number + "." + tt + ".tif"
-                        )
-
-                        f_chip = os.path.join(p_chips, f_chip)
-
-                        with rasterio.open(f_chip, "w", **meta) as dst:
-                            for bb in range(meta["count"]):
-                                data = src.read(bb + 1, window=window)
-                                dst.write(data, bb + 1)
-                        chips_dict[tt].append(f_chip)
+    for chip_dict in chips_dicts:
+        for k in total_chips.keys():
+            total_chips[k] += chip_dict[k]
 
     # for convenience (wasting disk space though) just copy keepers
     # to a new folder for terramind use (_TM)
@@ -146,11 +95,11 @@ def chip_data(fmasks_merged, to_stack):
         os.remove(f)
 
     # show count of chips per key
-    for key in chips_dict.keys():
-        print(key, len(chips_dict[key]))
+    for key in total_chips.keys():
+        print(key, len(total_chips[key]))
 
     # create DataFrame to track chips
-    chips_df = pd.DataFrame.from_dict(chips_dict)
+    chips_df = pd.DataFrame.from_dict(total_chips)
     chips_df['keep'] = False
     chips_df['base'] = ''
     chips_df['root'] = ''
@@ -159,3 +108,85 @@ def chip_data(fmasks_merged, to_stack):
     print(chips_df)
 
     return chips_df
+
+
+def _chip_tile(tile_key, tile, chips_path, chip_size=256):
+    print("chips for:", tile)
+    chips = {"Fmask": [], "MASK": [], "EVENT": [], "BANDS": [], "QC": []}
+
+    with rasterio.open(tile) as src:
+        meta = src.meta.copy()
+        h_tiles = src.width // chip_size
+        v_tiles = src.height // chip_size
+
+        for ii in range(v_tiles + 1):
+            for jj in range(h_tiles + 1):
+                x_off = jj * chip_size
+                y_off = ii * chip_size
+                width = min(chip_size, src.width - x_off)
+                height = min(chip_size, src.height - y_off)
+
+                # skip bad ones
+                if width != chip_size or height != chip_size:
+                    print("bad chip, skip:", width, height)
+                    continue
+
+                window = Window(x_off, y_off, width, height)
+                meta.update(
+                    {
+                        "width": width,
+                        "height": height,
+                        "transform": src.window_transform(window),
+                    }
+                )
+
+                ii_str = "%3.3d" % ii
+                jj_str = "%3.3d" % jj
+
+                tile_number = ".".join([ii_str, jj_str])
+
+                f_chip = os.path.basename(tile).replace(
+                    tile_key + ".tif", tile_number + "." + tile_key + ".tif"
+                )
+
+                f_chip = os.path.join(chips_path, f_chip)
+
+                with rasterio.open(f_chip, "w", **meta) as dst:
+                    for bb in range(meta["count"]):
+                        data = src.read(bb + 1, window=window)
+                        dst.write(data, bb + 1)
+
+                chips[tile_key].append(f_chip)
+
+    return chips
+
+
+def _get_bands(is_l30):
+    if is_l30:
+        bands = {
+            "B": "B02",
+            "G": "B03",
+            "R": "B04",
+            "N": "B05",
+            "SW1": "B06",
+            "SW2": "B07",
+            "Fmask": "Fmask",
+            "EVENT": "EVENT",
+            "QC": "QC",
+            "MASK": "MASK",
+        }
+    else:
+        bands = {
+            "B": "B02",
+            "G": "B03",
+            "R": "B04",
+            "N": "B08",
+            "SW1": "B11",
+            "SW2": "B12",
+            "Fmask": "Fmask",
+            "EVENT": "EVENT",
+            "QC": "QC",
+            "MASK": "MASK",
+        }
+
+    return bands
