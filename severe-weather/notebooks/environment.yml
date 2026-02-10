@@ -1,4 +1,4 @@
-name: hail_processing
+name: severe_weather
 channels:
   - conda-forge
   - defaults
@@ -16,5 +16,3 @@ dependencies:
   - gdown
   - earthaccess
   - pip
-  - pip:
-      - terratorch
