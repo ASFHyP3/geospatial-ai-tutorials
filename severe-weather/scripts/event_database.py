@@ -5,12 +5,12 @@ import geopandas as gpd
 import gdown
 
 
-def load():
+def load(data_dir: Path):
     # use 60-swath version
     hwds_google_drive_id = "1h_JIEcrrUF3OSTrmwAKNPa0eUEhPA2Xx"
     drive_url = f"https://drive.google.com/uc?id={hwds_google_drive_id}"
 
-    shp_dir = Path("hwds/SHP")
+    shp_dir = data_dir / "SHP"
     shp_dir.mkdir(parents=True, exist_ok=True)
 
     filename = "hwds_v3_20250205_subset_60.zip"
@@ -30,10 +30,10 @@ def load():
     gdf["ls5hlsDate"] = pd.to_datetime(gdf["ls5hlsDate"], format="%Y-%m-%d")
     gdf["s1Date"] = pd.to_datetime(gdf["s1Date"], format="%Y-%m-%d")
 
-    return gdf
+    return _add_buffered(gdf)
 
 
-def add_buffered(gdf):
+def _add_buffered(gdf):
     # make some additional columns that represent buffers after projecting to UTM 15N
     gdf = gdf.to_crs(32615)
     buffered_event = gdf.buffer(3000)

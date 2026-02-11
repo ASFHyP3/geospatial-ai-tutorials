@@ -163,7 +163,6 @@ def _merge_unique_passes(
         parts[4] = parts[4][0:7]
         parts.pop(3)
         f_template_merge = ".".join(parts)
-        breakpoint()
 
         bands = _get_bands(is_l30="L30" in f_template_merge)
         assert len(fmask_files_pass) == len(fmask_files)
@@ -205,7 +204,6 @@ def _merge_band(fmask_files, f_out, band):
             "crs": band_datasets[0].crs,
         }
     )
-    breakpoint()
 
     with rasterio.open(f_out, "w", **out_meta) as dst:
         dst.write(mosaic, 1)
@@ -319,12 +317,13 @@ def get_swath(row, hwds_path: Path, L30=False):
 
         # assess scene quality
         ds = rasterio.open(f_qc)
-
         qc = ds.read(1)
         ds = None
+
         ds = rasterio.open(f_event)
         event_mask = ds.read(1)
         ds = None
+
         ds = rasterio.open(str(f_mask).replace("Fmask", bands["R"]))
         r = ds.read(1)
         r = np.clip(r / 10000, 0, 2)
@@ -352,6 +351,8 @@ def get_swath(row, hwds_path: Path, L30=False):
 
         if pct_cf_event > 50:
             fmask_keepers.append(fmask_merged)
+
+        breakpoint()
 
     return fmask_keepers
 

@@ -19,13 +19,12 @@ logging.getLogger("rasterio").setLevel(logging.ERROR)
 
 
 def main():
-    gdf = event_database.load()
-    gdf = event_database.add_buffered(gdf)
+    gdf = event_database.load(Path("hwds"))
 
     keepers = [1442, 622, 1079, 628]
     gdf = gdf[gdf["swathID"].isin(keepers)]
 
-    data_path = Path("hwds") / 'HLS'
+    data_path = Path("hwds") / "HLS"
     earthaccess.login()
 
     for i, row in gdf.iterrows():
