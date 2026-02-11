@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+import shutil
 
 import numpy as np
 import earthaccess
@@ -9,6 +10,7 @@ import pandas as pd
 from rasterio.merge import merge
 from rasterio import features
 from rasterio.warp import calculate_default_transform, reproject
+from rasterio.windows import Window
 from rasterio.crs import CRS
 
 import event_database
@@ -26,6 +28,8 @@ def main():
         "RAW": rtc_path / "RAW",
         "WGS84": rtc_path / "WGS84",
         "MERGE": rtc_path / "MERGE",
+        "CHIPS": rtc_path / "CHIPS",
+        "CHIPS_TM": rtc_path / "CHIPS_TM",
     }
 
     for p in data_paths.values():
@@ -37,15 +41,27 @@ def main():
     gdf = gdf[gdf["swathID"].isin(keepers)]
 
     earthaccess.login()
+    tm_chips = []
 
     for _, swath in gdf.iterrows():
         merged_data = _get_data_for_swath(swath, data_paths)
 
         if merged_data is None or not _is_valid_rtc(merged_data):
             print("Skipping: not enough valid data")
-        else:
-            print("Chipping!")
-            _chip_rtc_data(merged_data)
+            continue
+
+        print("Chipping!")
+        merged_data = _stack_rtc_bands(merged_data, data_bands=('VV', 'VH'))
+        chips = _chip_rtc_data(merged_data, data_paths)
+
+        good_chips = _filter_chips(chips)
+        print(f'Found {len(good_chips)} good chips')
+        tm_chips += good_chips
+
+    for chip in tm_chips:
+        for chip_path in chip.values():
+            dest = data_paths["CHIPS_TM"] / chip_path.name
+            shutil.copy(chip_path, dest)
 
 
 def _get_data_for_swath(swath: pd.Series, data_paths: dict) -> dict[str, Path] | None:
@@ -160,7 +176,6 @@ def _reproject_files(
 
 def _reproject_file(local_file: Path, reprojected_file: Path, epsg=4326) -> None:
     # https://rasterio.readthedocs.io/en/stable/topics/reproject.html#reprojecting-a-geotiff-dataset
-
     with rasterio.open(local_file) as src:
         dst_crs = CRS.from_epsg(epsg)
         transform, width, height = calculate_default_transform(
@@ -212,14 +227,16 @@ def _merge(band_files: list[Path], output_file: Path) -> Path:
     return output_file
 
 
+def _rename(path: Path, extension: str, mask_name: str) -> Path:
+    return path.parent / path.name.replace(extension, mask_name)
+
+
 def _generate_masks(
         merged_path: Path, swath: pd.Series, merged_extension: str
 ) -> tuple[Path, Path]:
-    def _rename(path: Path, mask_name: str) -> Path:
-        return path.parent / path.name.replace(merged_extension, mask_name)
 
-    event_path = _rename(merged_path, "EVENT.tif")
-    mask_path = _rename(merged_path, "MASK.tif")
+    event_path = _rename(merged_path, merged_extension, "EVENT.tif")
+    mask_path = _rename(merged_path, merged_extension, "MASK.tif")
 
     with rasterio.open(merged_path) as ds:
         profile = ds.profile
@@ -253,8 +270,98 @@ def _generate_masks(
     return event_path, mask_path
 
 
-def _chip_rtc_data(merged: dict[str, Path]) -> None:
-    print(f"TODO: Generate chips for {merged}")
+def _stack_rtc_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
+    with rasterio.open(merged[data_bands[0]]) as src:
+        meta = src.meta.copy()
+
+    meta.update(count=len(data_bands), dtype=np.float32)
+    stacked_file_name = _rename(merged['VV'], 'VV.tif', 'BANDS.tif')
+
+    with rasterio.open(stacked_file_name, "w", **meta) as dst:
+        for idx, band in enumerate(data_bands, start=1):
+            with rasterio.open(merged[band]) as src:
+                dst.write(src.read(1), idx)
+
+    merged['BANDS'] = stacked_file_name
+
+    return merged
+
+
+def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_size=256):
+    chips = {}
+    # chips[tile_id] = {band, event, mask}
+
+    grid = []
+    with rasterio.open(merged["BANDS"]) as ref:
+        n_cols = ref.width // chip_size
+        n_rows = ref.height // chip_size
+
+        for row in range(n_rows):
+            for col in range(n_cols):
+                window = Window(col * chip_size, row * chip_size, chip_size, chip_size)
+                bounds = ref.window_bounds(window)
+
+                tile_id = f"{row:03d}.{col:03d}"
+                chips[tile_id] = {}
+                grid.append((tile_id, bounds))
+
+    # BAND (VV, VH), EVENT, MASK
+    for chip_layer in ('BANDS', 'mask', 'EVENT', 'MASK'):
+        layer_path = merged[chip_layer]
+
+        with rasterio.open(layer_path) as src:
+            for tile_id, bounds in grid:
+
+                window = src.window(*bounds)
+                window = Window(
+                    round(window.col_off),
+                    round(window.row_off),
+                    round(window.width),
+                    round(window.height)
+                )
+
+                data = src.read(window=window)
+
+                chip_meta = src.meta.copy()
+                chip_meta.update({
+                    "width": window.width,
+                    "height": window.height,
+                    "transform": src.window_transform(window),
+                })
+
+                chip_name = layer_path.name.replace(f"{chip_layer}.tif", f"{tile_id}.{chip_layer}.tif")
+                chip_path = data_paths['CHIPS'] / chip_name
+
+                with rasterio.open(chip_path, "w", **chip_meta) as dst:
+                    dst.write(data)
+
+                chips[tile_id][chip_layer] = chip_path
+
+    return chips
+
+
+def _filter_chips(chips: dict[str, dict]) -> list[dict]:
+    good_chips = []
+
+    for tile_id, chip in chips.items():
+        with rasterio.open(chip["BANDS"]) as ds:
+            rtc_data = ds.read()
+
+        with rasterio.open(chip["EVENT"]) as ds:
+            event_mask = ds.read(1)
+
+        has_nan_pixels = np.isnan(rtc_data).sum() > 0
+
+        num_pixels = event_mask.size
+        num_event_pixels = np.count_nonzero(event_mask > 0)
+
+        pct_pixels_over_event = 100.0 * (num_event_pixels / num_pixels)
+        data_overlaps_event = pct_pixels_over_event > 1
+
+        if not has_nan_pixels and data_overlaps_event:
+            good_chips.append(chip)
+
+    return good_chips
 
 
 if __name__ == "__main__":
