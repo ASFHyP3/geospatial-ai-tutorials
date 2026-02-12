@@ -180,13 +180,14 @@ def _get_data_for_swath(swath: pd.Series, data_paths: dict) -> dict[str, Path] |
 
         merged[band] = merged_band_path
 
-    event_tif = _generate_masks(
+    event_tif, mask_tif = _generate_masks(
         merged["VV"], swath, merged_extension="VV.tif"
     )
 
     return {
         **merged,
         "EVENT": event_tif,
+        "MASK": mask_tif,
     }
 
 
@@ -324,9 +325,21 @@ def _generate_masks(
 ) -> tuple[Path, Path]:
 
     event_path = _rename(merged_path, merged_extension, "EVENT.tif")
+    mask_path = _rename(merged_path, merged_extension, "MASK.tif")
 
     with rasterio.open(merged_path) as ds:
         profile = ds.profile
+
+        mask_raster = features.rasterize(
+            shapes=[[swath["geometry"], 1]],
+            fill=0,
+            out_shape=ds.shape,
+            transform=ds.transform,
+        )
+
+        with rasterio.open(mask_path, "w", **profile) as dst:
+            dst.write(mask_raster, 1)
+            print("generated:", mask_path)
 
         event_mask = features.rasterize(
             shapes=[
@@ -343,7 +356,7 @@ def _generate_masks(
             dst.write(event_mask, 1)
             print("generated:", event_path)
 
-    return event_path
+    return event_path, mask_path
 
 
 def _stack_rtc_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
@@ -380,7 +393,7 @@ def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_si
                 chips[tile_id] = {}
                 grid.append((tile_id, bounds))
 
-    for chip_layer in ("BANDS", "EVENT"):
+    for chip_layer in ("BANDS", "EVENT", "MASK"):
         layer_path = merged[chip_layer]
 
         with rasterio.open(layer_path) as src:
