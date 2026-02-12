@@ -3,14 +3,17 @@ from datetime import timedelta
 import shutil
 
 import numpy as np
+import cartopy.crs as ccrs
 import earthaccess
 from earthaccess.results import DataGranule
 import rasterio
 import pandas as pd
+import matplotlib.pyplot as plt
 from rasterio.merge import merge
 from rasterio import features
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
+from shapely.geometry import box
 from rasterio.crs import CRS
 
 import event_database
@@ -41,8 +44,22 @@ def main():
     gdf = gdf[gdf["swathID"].isin(keepers)]
 
     earthaccess.login()
-    tm_chips = []
 
+    # chip_swaths(gdf, data_paths)
+
+    for _, swath in gdf.iterrows():
+        swath_id = _make_swath_id(swath["swathID"])
+
+        all_chips = list(data_paths["CHIPS"].glob(f"{swath_id}.*.tif"))
+        good_chips = list(data_paths["CHIPS_TM"].glob(f"{swath_id}.*.tif"))
+
+        merged_file = list(data_paths["MERGE"].glob(f"{swath_id}.*BANDS.tif"))[0]
+
+        _plot_chips(merged_file, all_chips, good_chips, swath)
+
+
+def chip_swaths(gdf, data_paths):
+    tm_chips = []
     for _, swath in gdf.iterrows():
         merged_data = _get_data_for_swath(swath, data_paths)
 
@@ -51,17 +68,90 @@ def main():
             continue
 
         print("Chipping!")
-        merged_data = _stack_rtc_bands(merged_data, data_bands=('VV', 'VH'))
+        merged_data = _stack_rtc_bands(merged_data, data_bands=("VV", "VH"))
         chips = _chip_rtc_data(merged_data, data_paths)
 
         good_chips = _filter_chips(chips)
-        print(f'Found {len(good_chips)} good chips')
+        print(f"Found {len(good_chips)} good chips")
+
+        for chip in good_chips:
+            for chip_path in chip.values():
+                dest = data_paths["CHIPS_TM"] / chip_path.name
+                shutil.copy(chip_path, dest)
+
         tm_chips += good_chips
 
-    for chip in tm_chips:
-        for chip_path in chip.values():
-            dest = data_paths["CHIPS_TM"] / chip_path.name
-            shutil.copy(chip_path, dest)
+    return tm_chips
+
+
+def _plot_chips(merged_band_file, all_chips, good_chips, swath):
+    crs_pc = ccrs.PlateCarree()
+
+    with rasterio.open(merged_band_file) as ds:
+        bounds = ds.bounds
+        full_extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
+        rtc_data = ds.read()
+
+    def normalize_image_array(
+        input_array: np.ndarray, vmin: float, vmax: float
+    ) -> np.ndarray:
+        input_array = input_array.astype(float)
+        scaled_array = (input_array - vmin) / (vmax - vmin)
+        scaled_array[np.isnan(input_array)] = 0
+        normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
+
+        return normalized_array
+
+    vv = normalize_image_array(np.sqrt(rtc_data[0]), 0.14, 0.52)
+    vh = normalize_image_array(np.sqrt(rtc_data[1]), 0.05, 0.259)
+    img = np.stack([vv, vh, vv], axis=-1)
+
+    # plot BANDS and geom
+    fig, ax = plt.subplots(
+        1,
+        1,
+        subplot_kw={"projection": crs_pc},
+        figsize=(12, 12),
+        layout="constrained",
+    )
+
+    swath_geom = swath["geometry"]
+
+    ax.imshow(img, extent=full_extent, origin="upper", transform=crs_pc)
+    ax.add_geometries(
+        [swath_geom], edgecolor="red", linewidth=2, facecolor="none", crs=crs_pc
+    )
+
+    def show_chips(chips, color, linewidth, z):
+        for chip in chips:
+            with rasterio.open(chip) as ds:
+                chip_bounds = ds.bounds
+                chip_geom = box(
+                    chip_bounds.left,
+                    chip_bounds.bottom,
+                    chip_bounds.right,
+                    chip_bounds.top,
+                )
+
+            ax.add_geometries(
+                [chip_geom],
+                edgecolor=color,
+                linewidth=linewidth,
+                alpha=1,
+                zorder=z,
+                facecolor="none",
+                crs=crs_pc,
+            )
+
+    show_chips(all_chips, "yellow", 1, z=1)
+    show_chips(good_chips, "blue", 3, z=2)
+
+    ax.set_extent(full_extent, crs=crs_pc)
+    plt.show()
+
+
+def _make_swath_id(swathID):
+    return f"{int(swathID):04d}"
 
 
 def _get_data_for_swath(swath: pd.Series, data_paths: dict) -> dict[str, Path] | None:
@@ -232,7 +322,7 @@ def _rename(path: Path, extension: str, mask_name: str) -> Path:
 
 
 def _generate_masks(
-        merged_path: Path, swath: pd.Series, merged_extension: str
+    merged_path: Path, swath: pd.Series, merged_extension: str
 ) -> tuple[Path, Path]:
 
     event_path = _rename(merged_path, merged_extension, "EVENT.tif")
@@ -275,14 +365,14 @@ def _stack_rtc_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
         meta = src.meta.copy()
 
     meta.update(count=len(data_bands), dtype=np.float32)
-    stacked_file_name = _rename(merged['VV'], 'VV.tif', 'BANDS.tif')
+    stacked_file_name = _rename(merged["VV"], "VV.tif", "BANDS.tif")
 
     with rasterio.open(stacked_file_name, "w", **meta) as dst:
         for idx, band in enumerate(data_bands, start=1):
             with rasterio.open(merged[band]) as src:
                 dst.write(src.read(1), idx)
 
-    merged['BANDS'] = stacked_file_name
+    merged["BANDS"] = stacked_file_name
 
     return merged
 
@@ -306,31 +396,34 @@ def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_si
                 grid.append((tile_id, bounds))
 
     # BAND (VV, VH), EVENT, MASK
-    for chip_layer in ('BANDS', 'mask', 'EVENT', 'MASK'):
+    for chip_layer in ("BANDS", "mask", "EVENT", "MASK"):
         layer_path = merged[chip_layer]
 
         with rasterio.open(layer_path) as src:
             for tile_id, bounds in grid:
-
                 window = src.window(*bounds)
                 window = Window(
                     round(window.col_off),
                     round(window.row_off),
                     round(window.width),
-                    round(window.height)
+                    round(window.height),
                 )
 
                 data = src.read(window=window)
 
                 chip_meta = src.meta.copy()
-                chip_meta.update({
-                    "width": window.width,
-                    "height": window.height,
-                    "transform": src.window_transform(window),
-                })
+                chip_meta.update(
+                    {
+                        "width": window.width,
+                        "height": window.height,
+                        "transform": src.window_transform(window),
+                    }
+                )
 
-                chip_name = layer_path.name.replace(f"{chip_layer}.tif", f"{tile_id}.{chip_layer}.tif")
-                chip_path = data_paths['CHIPS'] / chip_name
+                chip_name = layer_path.name.replace(
+                    f"{chip_layer}.tif", f"{tile_id}.{chip_layer}.tif"
+                )
+                chip_path = data_paths["CHIPS"] / chip_name
 
                 with rasterio.open(chip_path, "w", **chip_meta) as dst:
                     dst.write(data)
