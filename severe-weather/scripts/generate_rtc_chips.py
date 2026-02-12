@@ -1,22 +1,24 @@
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 import shutil
+import zipfile
 
-import numpy as np
 import cartopy.crs as ccrs
 import earthaccess
 from earthaccess.results import DataGranule
-import rasterio
-import pandas as pd
+import gdown
+import geopandas as gpd
 import matplotlib.pyplot as plt
-from rasterio.merge import merge
+import numpy as np
+import pandas as pd
+import rasterio
 from rasterio import features
+from rasterio.crs import CRS
+from rasterio.merge import merge
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
-from rasterio.crs import CRS
-
-import event_database
+from sklearn.model_selection import train_test_split
 
 
 MINIMUM_VALID_DATA_PERCENT = 50.0
@@ -33,12 +35,16 @@ def main():
         "MERGE": rtc_path / "MERGE",
         "CHIPS": rtc_path / "CHIPS",
         "CHIPS_TM": rtc_path / "CHIPS_TM",
+        "SPLITS": rtc_path / "SPLITS",
     }
+
+    for p in ("CHIPS", "CHIPS_TM", "SPLITS"):
+        shutil.rmtree(data_paths[p], ignore_errors=True)
 
     for p in data_paths.values():
         p.mkdir(parents=True, exist_ok=True)
 
-    gdf = event_database.load(hwds_path)
+    gdf = _load_event_database(hwds_path)
 
     keepers = [1442, 622, 1079, 628]
     gdf = gdf[gdf["swathID"].isin(keepers)]
@@ -56,9 +62,107 @@ def main():
 
         _plot_chips(merged_file, all_chips, good_chips, swath)
 
+    band_chips = list(data_paths["CHIPS_TM"].glob("*.BANDS.tif"))
+
+    create_split_files(band_chips, splits_path=data_paths["SPLITS"])
+    means, stds = calculate_stats(chips=band_chips)
+
+    print(f"Means (VV, VH): {means}")
+    print(f"Stds (VV, VH): {stds}")
+
+
+def _load_event_database(data_dir: Path):
+    # use 60-swath version
+    hwds_google_drive_id = "1h_JIEcrrUF3OSTrmwAKNPa0eUEhPA2Xx"
+    drive_url = f"https://drive.google.com/uc?id={hwds_google_drive_id}"
+
+    shp_dir = data_dir / "SHP"
+    shp_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = "hwds_v3_20250205_subset_60.zip"
+
+    zip_path = shp_dir / filename
+
+    if not zip_path.exists():
+        gdown.download(drive_url, str(zip_path), quiet=False)
+
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(path=shp_dir)
+
+    shp_path = shp_dir / "hwds_v3_20250205_subset_60.shp"
+    gdf = gpd.read_file(shp_path)
+
+    gdf["swathDate"] = pd.to_datetime(gdf["swathDate"], format="%Y-%m-%d")
+    gdf["ls5hlsDate"] = pd.to_datetime(gdf["ls5hlsDate"], format="%Y-%m-%d")
+    gdf["s1Date"] = pd.to_datetime(gdf["s1Date"], format="%Y-%m-%d")
+
+    return _add_buffered(gdf)
+
+
+def _add_buffered(gdf):
+    # make some additional columns that represent buffers after projecting to UTM 15N
+    gdf = gdf.to_crs(32615)
+    buffered_event = gdf.buffer(3000)
+    buffered_event_background = gdf.buffer(10000)
+    gdf = gdf.to_crs(4326)
+
+    gdf["buffered_event"] = buffered_event
+    gdf["buffered_event_background"] = buffered_event_background
+    gdf["buffered_event"] = gdf["buffered_event"].to_crs("EPSG:4326")
+    gdf["buffered_event_background"] = gdf["buffered_event_background"].to_crs(
+        "EPSG:4326"
+    )
+
+    return gdf
+
+def create_split_files(band_chips: list[Path], splits_path: Path) -> None:
+    chip_ids = [p.name.removesuffix(".BANDS.tif") for p in band_chips]
+
+    train, test = train_test_split(chip_ids, test_size=0.3, random_state=42)
+
+    splits = {"train": train, "val": test, "test": test}
+
+    for split, chip_ids in splits.items():
+        split_path = splits_path / f"{split}.txt"
+        split_path.write_text("\n".join(chip_ids))
+
+
+def calculate_stats(chips: list[Path], n_bands: int = 2) -> tuple:
+    mean = np.zeros(n_bands, dtype=np.float64)
+    M2 = np.zeros(n_bands, dtype=np.float64)
+    count = np.zeros(n_bands, dtype=np.float64)
+
+    for chip in chips:
+        with rasterio.open(chip) as src:
+            band_data = src.read()
+            count, mean, M2 = 0, 0, 0
+
+            _, H, W = band_data.shape
+
+            batch_count = H * W
+            batch_mean = band_data.mean(axis=(1, 2))
+            batch_var = band_data.var(axis=(1, 2))
+
+            delta = batch_mean - mean
+            total_count = count + batch_count
+
+            mean = mean + delta * (batch_count / total_count)
+            M2 = (
+                M2
+                + batch_var * batch_count
+                + (delta**2) * count * batch_count / total_count
+            )
+            count = total_count
+
+    variance = M2 / count
+    std = np.sqrt(variance)
+
+    return mean, std
+
 
 def chip_swaths(gdf, data_paths):
     tm_chips = []
+
     for _, swath in gdf.iterrows():
         merged_data = _get_data_for_swath(swath, data_paths)
 
@@ -74,7 +178,10 @@ def chip_swaths(gdf, data_paths):
         print(f"Found {len(good_chips)} good chips")
 
         for chip in good_chips:
-            for chip_path in chip.values():
+            for band, chip_path in chip.items():
+                if band not in ("MASK", "BANDS"):
+                    continue
+
                 dest = data_paths["CHIPS_TM"] / chip_path.name
                 shutil.copy(chip_path, dest)
 
