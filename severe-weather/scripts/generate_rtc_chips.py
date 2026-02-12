@@ -35,19 +35,20 @@ def main():
         "MERGE": rtc_path / "MERGE",
         "CHIPS": rtc_path / "CHIPS",
         "CHIPS_TM": rtc_path / "CHIPS_TM",
+        "PLOTS": rtc_path / "PLOTS",
         "SPLITS": rtc_path / "SPLITS",
     }
 
-    for p in ("CHIPS", "CHIPS_TM", "SPLITS"):
-        shutil.rmtree(data_paths[p], ignore_errors=True)
+    # for p in ("CHIPS", "CHIPS_TM", "SPLITS"):
+    #     shutil.rmtree(data_paths[p], ignore_errors=True)
 
     for p in data_paths.values():
         p.mkdir(parents=True, exist_ok=True)
 
     gdf = _load_event_database(hwds_path)
 
-    keepers = [1442, 622, 1079, 628]
-    gdf = gdf[gdf["swathID"].isin(keepers)]
+    # keepers = [1442, 622, 1079, 628]
+    # gdf = gdf[gdf["swathID"].isin(keepers)]
 
     earthaccess.login()
 
@@ -56,11 +57,18 @@ def main():
     for _, swath in gdf.iterrows():
         swath_id = _make_swath_id(swath["swathID"])
 
+        merged_file = list(data_paths["MERGE"].glob(f"{swath_id}.*BANDS.tif"))
+        if len(merged_file) == 0:
+            print(f"no chips for {swath_id}")
+            continue
+
         all_chips = list(data_paths["CHIPS"].glob(f"{swath_id}.*.tif"))
         good_chips = list(data_paths["CHIPS_TM"].glob(f"{swath_id}.*.tif"))
-        merged_file = list(data_paths["MERGE"].glob(f"{swath_id}.*BANDS.tif"))[0]
 
-        _plot_chips(merged_file, all_chips, good_chips, swath)
+        print(f"plotting {swath_id}")
+        _plot_chips(
+            merged_file[0], all_chips, good_chips, swath, save_to=data_paths["PLOTS"]
+        )
 
     band_chips = list(data_paths["CHIPS_TM"].glob("*.BANDS.tif"))
 
@@ -114,6 +122,7 @@ def _add_buffered(gdf):
     )
 
     return gdf
+
 
 def create_split_files(band_chips: list[Path], splits_path: Path) -> None:
     chip_ids = [p.name.removesuffix(".BANDS.tif") for p in band_chips]
@@ -190,7 +199,14 @@ def chip_swaths(gdf, data_paths):
     return tm_chips
 
 
-def _plot_chips(merged_band_file, all_chips, good_chips, swath):
+def _plot_chips(
+    merged_band_file,
+    all_chips,
+    good_chips,
+    swath,
+    save_to: Path | None = None,
+    quite=True,
+):
     crs_pc = ccrs.PlateCarree()
 
     with rasterio.open(merged_band_file) as ds:
@@ -253,7 +269,18 @@ def _plot_chips(merged_band_file, all_chips, good_chips, swath):
     show_chips(good_chips, "blue", 3, z=2)
 
     ax.set_extent(full_extent, crs=crs_pc)
-    plt.show()
+
+    if save_to:
+        plt.savefig(
+            save_to / f"{merged_band_file.name.removesuffix('BANDS.tif')}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+    if not quite:
+        plt.show()
+
+    plt.close(fig)
 
 
 def _make_swath_id(swathID):
