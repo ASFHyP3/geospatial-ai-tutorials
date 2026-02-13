@@ -165,6 +165,7 @@ def _merge_unique_passes(
         f_template_merge = ".".join(parts)
 
         bands = _get_bands(is_l30="L30" in f_template_merge)
+        assert len(fmask_files_pass) == len(fmask_files)
 
         for band in bands.values():
             f_out = merge_path / f_template_merge.replace("Fmask", band)
@@ -176,8 +177,8 @@ def _merge_unique_passes(
             if os.path.isfile(f_out):
                 print("available:", f_out)
             else:
-                print("generated:", f_out)
                 f_out = _merge_band(fmask_files_pass, f_out, band)
+                print("generated:", f_out)
 
             if "Fmask" in str(f_out):
                 fmasks_merged.append(f_out)
@@ -185,17 +186,14 @@ def _merge_unique_passes(
     return fmasks_merged
 
 
-def _merge_band(fmask_files_pass, f_out, band):
-    to_merge = []
+def _merge_band(fmask_files, f_out, band):
+    band_files = [str(f_mask).replace("Fmask", band) for f_mask in fmask_files]
+    band_datasets = [rasterio.open(band_file) for band_file in band_files]
 
-    for f_fmask in fmask_files_pass:
-        band_file = str(f_fmask).replace("Fmask", band)
-        ds = rasterio.open(band_file)
-        to_merge.append(ds)
-
-    mosaic, out_trans = merge(to_merge)
+    mosaic, out_trans = merge(band_datasets)
     mosaic = np.squeeze(mosaic)
-    out_meta = to_merge[0].meta.copy()
+
+    out_meta = band_datasets[0].meta.copy()
 
     out_meta.update(
         {
@@ -203,14 +201,14 @@ def _merge_band(fmask_files_pass, f_out, band):
             "height": mosaic.shape[0],
             "width": mosaic.shape[1],
             "transform": out_trans,
-            "crs": to_merge[0].crs,
+            "crs": band_datasets[0].crs,
         }
     )
 
     with rasterio.open(f_out, "w", **out_meta) as dst:
         dst.write(mosaic, 1)
 
-    for ds in to_merge:
+    for ds in band_datasets:
         ds.close()
 
     return f_out
@@ -278,7 +276,7 @@ def get_swath(row, hwds_path: Path, L30=False):
     results = _search_data(
         L30,
         bbox=row["geometry"].bounds,
-        start_date=row["swathDate"],
+        start_date=row["ls5hlsDate"],
     )
 
     print(len(results))
@@ -319,12 +317,13 @@ def get_swath(row, hwds_path: Path, L30=False):
 
         # assess scene quality
         ds = rasterio.open(f_qc)
-
         qc = ds.read(1)
         ds = None
+
         ds = rasterio.open(f_event)
         event_mask = ds.read(1)
         ds = None
+
         ds = rasterio.open(str(f_mask).replace("Fmask", bands["R"]))
         r = ds.read(1)
         r = np.clip(r / 10000, 0, 2)
@@ -352,6 +351,8 @@ def get_swath(row, hwds_path: Path, L30=False):
 
         if pct_cf_event > 50:
             fmask_keepers.append(fmask_merged)
+
+        breakpoint()
 
     return fmask_keepers
 

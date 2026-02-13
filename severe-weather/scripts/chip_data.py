@@ -70,13 +70,7 @@ def chip_data(fmasks_merged, to_stack):
     # use fmasks as templates and do stuff
     # keep track of all eventual tiles
 
-    total_chips = {
-        "Fmask": [],
-        "MASK": [],
-        "EVENT": [],
-        "BANDS": [],
-        "QC": []
-    }
+    total_chips = {"Fmask": [], "MASK": [], "EVENT": [], "BANDS": [], "QC": []}
 
     for chip_dict in chips_dicts:
         for k in total_chips.keys():
@@ -84,13 +78,13 @@ def chip_data(fmasks_merged, to_stack):
 
     # for convenience (wasting disk space though) just copy keepers
     # to a new folder for terramind use (_TM)
-    p_chips_keep = 'hwds/CHIPS_TM'
+    p_chips_keep = "hwds/CHIPS_TM"
     if not os.path.isdir(p_chips_keep):
-        print('making:', p_chips_keep)
+        print("making:", p_chips_keep)
         os.makedirs(p_chips_keep, exist_ok=True)
 
     # tidy old files
-    files = glob.glob(os.path.join(p_chips_keep, '*.tif'))
+    files = glob.glob(os.path.join(p_chips_keep, "*.tif"))
     for f in files:
         os.remove(f)
 
@@ -100,11 +94,11 @@ def chip_data(fmasks_merged, to_stack):
 
     # create DataFrame to track chips
     chips_df = pd.DataFrame.from_dict(total_chips)
-    chips_df['keep'] = False
-    chips_df['base'] = ''
-    chips_df['root'] = ''
-    chips_df['pct_cf'] = 0.0
-    chips_df['pct_ev'] = 0.0
+    chips_df["keep"] = False
+    chips_df["base"] = ""
+    chips_df["root"] = ""
+    chips_df["pct_cf"] = 0.0
+    chips_df["pct_ev"] = 0.0
     print(chips_df)
 
     return chips_df

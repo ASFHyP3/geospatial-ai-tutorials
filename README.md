@@ -10,13 +10,16 @@ Tutorials based around the Sever weather use case.
 
 ## Severe Weather Notebooks
 
-- [Custom HLS Dataset](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/custom-hls-dataset.ipynb)
+- [Chipping Opera RTC Data](https://github.com/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/chip_opera_rtc_data.ipynb)
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/chip_opera_rtc_data.ipynb)
+
+- [Custom HLS Dataset](https://github.com/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/custom-hls-dataset.ipynb)
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/custom-hls-dataset.ipynb)
 
-- [Hail and Wind Damage Detection (TerraMind + HLS)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/hail_wind_damage_detection_terramind_hls.ipynb)
+- [Hail and Wind Damage Detection (TerraMind + HLS)](https://github.com/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/hail_wind_damage_detection_terramind_hls.ipynb)
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/hail_wind_damage_detection_terramind_hls.ipynb)
 
-- [TerraMind Training with Prepared Dataset](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/terramind_train.ipynb)
+- [TerraMind Training with Prepared Dataset](https://github.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/terramind_train.ipynb)
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/terramind_train.ipynb)
 
 
