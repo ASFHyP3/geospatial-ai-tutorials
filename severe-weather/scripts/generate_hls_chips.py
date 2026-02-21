@@ -21,22 +21,27 @@ from shapely.geometry import box
 from sklearn.model_selection import train_test_split
 
 
-def search_hls_data(swath: pd.Series) -> list[DataGranule]:
-    start_date = swath["ls5hlsDate"]
+# ------------------------- RTC FUNCTIONS --------------------------- #
+
+def search_rtc_data(swath: pd.Series) -> list[DataGranule]:
+    start_date = swath["s1Date"]
     final_date = start_date + timedelta(days=1)
+
     date_range = (start_date.strftime("%Y-%m-%d"), final_date.strftime("%Y-%m-%d"))
 
-    collection_ids = ["C2021957295-LPCLOUD"]  # S2
-    # collection_ids = ["C2021957657-LPCLOUD", "C2021957295-LPCLOUD"] # S2, L30
-
     results = earthaccess.search_data(
-        concept_id=collection_ids,
+        short_name=["OPERA_L2_RTC-S1_V1"],
         temporal=date_range,
         bounding_box=swath["geometry"].bounds,
-        cloud_hosted=True,
     )
 
     return results
+
+
+def band_from_rtc_filename(filename):
+    # OPERA_L2_RTC-S1_T063-133415-IW2_20170620T001327Z_20250925T045340Z_S1A_30_v1.0_VV.tif
+
+    return filename.split('_')[-1].split('.')[0]
 
 
 def make_merged_rtc_name(template_filename: str) -> str:
@@ -58,12 +63,129 @@ def make_merged_rtc_name(template_filename: str) -> str:
     return "_".join(name_parts)
 
 
+def is_valid_rtc(merged: dict[str, Path]) -> bool:
+    with rasterio.open(merged["mask"]) as ds:
+        validity_mask = ds.read(1)
+
+    with rasterio.open(merged["EVENT"]) as ds:
+        event_mask = ds.read(1)
+
+    is_event_pixel = event_mask == 1
+    # https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#validity-mask
+    is_valid_pixel = np.isin(validity_mask, [0, 1])
+
+    total_event_pixels = is_event_pixel.sum()
+    valid_event_pixels = (is_event_pixel & is_valid_pixel).sum()
+
+    pct_valid_data = 100.0 * valid_event_pixels / total_event_pixels
+    print(f"Percent of the event with valid data: {pct_valid_data:.1f}%")
+
+    return pct_valid_data > 50.0
+
+
+def filter_rtc_chips(chips: dict[str, dict]) -> list[dict]:
+    good_chips = []
+
+    for tile_id, chip in chips.items():
+        with rasterio.open(chip["BANDS"]) as ds:
+            rtc_data = ds.read()
+
+        with rasterio.open(chip["EVENT"]) as ds:
+            event_mask = ds.read(1)
+
+        has_nan_pixels = np.isnan(rtc_data).sum() > 0
+
+        num_pixels = event_mask.size
+        num_event_pixels = np.count_nonzero(event_mask > 0)
+
+        pct_pixels_over_event = 100.0 * (num_event_pixels / num_pixels)
+        data_overlaps_event = pct_pixels_over_event > 1
+
+        if not has_nan_pixels and data_overlaps_event:
+            good_chips.append(chip)
+
+    return good_chips
+
+
+def normalize_image_array(
+    input_array: np.ndarray, vmin: float, vmax: float
+) -> np.ndarray:
+    input_array = input_array.astype(float)
+    scaled_array = (input_array - vmin) / (vmax - vmin)
+    scaled_array[np.isnan(input_array)] = 0
+    normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
+
+    return normalized_array
+
+
+def get_rtc_img(rtc_data: np.ndarray) -> np.ndarray:
+    vv = normalize_image_array(np.sqrt(rtc_data[0]), 0.14, 0.52)
+    vh = normalize_image_array(np.sqrt(rtc_data[1]), 0.05, 0.259)
+
+    img = np.stack([vv, vh, vv], axis=-1)
+
+    return img
+
+
+# ------------------------- HLS FUNCTIONS --------------------------- #
+
+def search_hls_data(swath: pd.Series) -> list[DataGranule]:
+    start_date = swath["ls5hlsDate"]
+    final_date = start_date + timedelta(days=1)
+    date_range = (start_date.strftime("%Y-%m-%d"), final_date.strftime("%Y-%m-%d"))
+
+    #  collection_ids = ["C2021957295-LPCLOUD"]  # S2
+    collection_ids = ["C2021957657-LPCLOUD", "C2021957295-LPCLOUD"] # S2, L30
+
+    results = earthaccess.search_data(
+        concept_id=collection_ids,
+        temporal=date_range,
+        bounding_box=swath["geometry"].bounds,
+        cloud_hosted=True,
+    )
+
+    return results
+
+
+def band_from_hls_filename(filename):
+    # 1442.HLS.L30.T15TUG.2017167T165321.v2.0.B06.tif
+    parts = filename.split('.')
+
+    sensor, band = parts[2], parts[-2]
+
+    bands = {
+        "L30": {
+           "B02": "B",
+           "B03": "G",
+           "B04": "R",
+           "B05": "N",
+           "B06": "SW1",
+           "B07": "SW2",
+           "Fmask": "Fmask",
+        },
+        "S30": {
+           "B02": "B",
+           "B03": "G",
+           "B04": "R",
+           "B08": "N",
+           "B11": "SW1",
+           "B12": "SW2",
+           "Fmask": "Fmask",
+        }
+    }
+
+    try:
+        return bands[sensor][band]
+    except KeyError:
+        return ''
+
+
 def make_merged_hls_name(template_filename: str) -> str:
     parts = template_filename.split(".")
     parts[4] = parts[4][0:7]
     parts.pop(3)
+    parts[-2] = band_from_hls_filename(template_filename)
     f_template_merge = ".".join(parts)
-
     return f_template_merge
 
 
@@ -143,70 +265,6 @@ def filter_hls_chips(chips: dict[str, dict]) -> list[dict]:
     return good_chips
 
 
-def is_valid_rtc(merged: dict[str, Path]) -> bool:
-    with rasterio.open(merged["mask"]) as ds:
-        validity_mask = ds.read(1)
-
-    with rasterio.open(merged["EVENT"]) as ds:
-        event_mask = ds.read(1)
-
-    is_event_pixel = event_mask == 1
-    # https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#validity-mask
-    is_valid_pixel = np.isin(validity_mask, [0, 1])
-
-    total_event_pixels = is_event_pixel.sum()
-    valid_event_pixels = (is_event_pixel & is_valid_pixel).sum()
-
-    pct_valid_data = 100.0 * valid_event_pixels / total_event_pixels
-    print(f"Percent of the event with valid data: {pct_valid_data:.1f}%")
-
-    return pct_valid_data > MINIMUM_VALID_DATA_PERCENT
-
-
-def filter_rtc_chips(chips: dict[str, dict]) -> list[dict]:
-    good_chips = []
-
-    for tile_id, chip in chips.items():
-        with rasterio.open(chip["BANDS"]) as ds:
-            rtc_data = ds.read()
-
-        with rasterio.open(chip["EVENT"]) as ds:
-            event_mask = ds.read(1)
-
-        has_nan_pixels = np.isnan(rtc_data).sum() > 0
-
-        num_pixels = event_mask.size
-        num_event_pixels = np.count_nonzero(event_mask > 0)
-
-        pct_pixels_over_event = 100.0 * (num_event_pixels / num_pixels)
-        data_overlaps_event = pct_pixels_over_event > 1
-
-        if not has_nan_pixels and data_overlaps_event:
-            good_chips.append(chip)
-
-    return good_chips
-
-
-def normalize_image_array(
-    input_array: np.ndarray, vmin: float, vmax: float
-) -> np.ndarray:
-    input_array = input_array.astype(float)
-    scaled_array = (input_array - vmin) / (vmax - vmin)
-    scaled_array[np.isnan(input_array)] = 0
-    normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
-
-    return normalized_array
-
-
-def get_rtc_img(rtc_data: np.ndarray) -> np.ndarray:
-    vv = normalize_image_array(np.sqrt(rtc_data[0]), 0.14, 0.52)
-    vh = normalize_image_array(np.sqrt(rtc_data[1]), 0.05, 0.259)
-
-    img = np.stack([vv, vh, vv], axis=-1)
-
-    return img
-
-
 def bytescale(arr, cmin=0, cmax=1, low=0, high=255):
     # clip the data to be in the range of cmin to cmax
     arr = np.clip(arr, cmin, cmax)
@@ -221,57 +279,52 @@ def bytescale(arr, cmin=0, cmax=1, low=0, high=255):
 
 
 def get_hls_img(hls_data: np.ndarray) -> np.ndarray:
-    # ds = rasterio.open(fmask_merged.replace("Fmask", "B04"))
+    # B04
     r = bytescale(np.sqrt(np.clip(hls_data[2] / 10000.0, 0, 2)), 0, 0.5)
 
-    # ds = rasterio.open(fmask_merged.replace("Fmask", "B03"))
+    # B03
     g = bytescale(np.sqrt(np.clip(hls_data[1] / 10000.0, 0, 2)), 0, 0.5)
 
-    # ds = rasterio.open(fmask_merged.replace("Fmask", "B02"))
+    # B02
     b = bytescale(np.sqrt(np.clip(hls_data[0] / 10000.0, 0, 2)), 0, 0.5)
 
     rgb = np.dstack((r, g, b))
-
-    breakpoint()
     return rgb
 
 
-MINIMUM_VALID_DATA_PERCENT = 50.0
 QUITE = False
-
-ALL_BANDS = ("B02", "B03", "B04", "B08", "B11", "B12", "Fmask")
-STACK_BANDS = ("B02", "B03", "B04", "B08", "B11", "B12")
-
-# ls_bands = {
-#     "B": "B02",
-#     "G": "B03",
-#     "R": "B04",
-#     "N": "B05",
-#     "SW1": "B06",
-#     "SW2": "B07",
-#     "Fmask": "Fmask",
-# }
-# s2_bands = {
-#     "B": "B02",
-#     "G": "B03",
-#     "R": "B04",
-#     "N": "B08",
-#     "SW1": "B11",
-#     "SW2": "B12",
-#     "Fmask": "Fmask",
-# }
-
-MODALITY = "HLS"
 CHIP_SIZE = 256
 RNG_SEED = 42
+
+# HLS Settings
+MODALITY = "HLS"
+ALL_BANDS = ("B", "G", "R", "N", "SW1", "SW2", "Fmask")
+STACK_BANDS = ("B", "G", "R", "N", "SW1", "SW2")
+CHIP_BANDS = ("BANDS", "EVENT", "MASK", "Fmask")
+
 SEARCH_FUNC = search_hls_data
+BAND_FROM_FILENAME_FUNC = band_from_hls_filename
 MERGED_NAME_FUNC = make_merged_hls_name
 VALIDATE_FUNC = is_valid_hls
 FILTER_CHIPS_FUNC = filter_hls_chips
 GET_IMG_FUNC = get_hls_img
 
+# # RTC Settings
+# ALL_BANDS = ("VV", "VH", "mask")
+# STACK_BANDS = ("VV", "VH")
+# CHIP_BANDS = ("BANDS", "EVENT", "MASK")
+#
+# MODALITY = "RTC"
+# SEARCH_FUNC = search_rtc_data
+# BAND_FROM_FILENAME_FUNC = band_from_rtc_filename
+# VALIDATE_FUNC = is_valid_rtc
+# FILTER_CHIPS_FUNC = filter_rtc_chips
+# MERGED_NAME_FUNC = make_merged_rtc_name
+# GET_IMG_FUNC = get_rtc_img
+
 
 def main():
+    print(f'Chipping Data for {MODALITY}')
     hwds_path = Path("hwds")
     modality_path = hwds_path / MODALITY
 
@@ -294,8 +347,7 @@ def main():
 
     gdf = _load_event_database(hwds_path)
 
-    # keepers = [1442, 622, 1079, 628]
-    keepers = [1442, 622]
+    keepers = [1442, 622, 1079, 628]
     gdf = gdf[gdf["swathID"].isin(keepers)]
 
     earthaccess.login()
@@ -303,7 +355,6 @@ def main():
     tm_chips = []
 
     for _, swath in gdf.iterrows():
-        break
         results = SEARCH_FUNC(swath)
 
         local_files = earthaccess.download(
@@ -540,7 +591,7 @@ def _get_merged_swath_data(data_tifs: list[Path], swath: pd.Series, data_paths: 
 
     merged = {}
     for band in ALL_BANDS:
-        band_files = [f for f in reprojected_tifs if band in f.name]
+        band_files = [f for f in reprojected_tifs if band in BAND_FROM_FILENAME_FUNC(f.name)]
 
         merged_name = MERGED_NAME_FUNC(band_files[0].name)
         merged_band_path = _merge(
@@ -710,7 +761,7 @@ def _chip_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_size=C
                 chips[tile_id] = {}
                 grid.append((tile_id, bounds))
 
-    for chip_layer in ("BANDS", "EVENT", "MASK", "Fmask"):
+    for chip_layer in CHIP_BANDS:
         layer_path = merged[chip_layer]
 
         with rasterio.open(layer_path) as src:
@@ -746,4 +797,20 @@ def _chip_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_size=C
 
 
 if __name__ == "__main__":
+    QUITE = False
+    CHIP_SIZE = 256
+    RNG_SEED = 42
+
+    MODALITY = "HLS"
+    ALL_BANDS = ("B", "G", "R", "N", "SW1", "SW2", "Fmask")
+    STACK_BANDS = ("B", "G", "R", "N", "SW1", "SW2")
+    CHIP_BANDS = ("BANDS", "EVENT", "MASK", "Fmask")
+
+    SEARCH_FUNC = search_hls_data
+    BAND_FROM_FILENAME_FUNC = band_from_hls_filename
+    MERGED_NAME_FUNC = make_merged_hls_name
+    VALIDATE_FUNC = is_valid_hls
+    FILTER_CHIPS_FUNC = filter_hls_chips
+    GET_IMG_FUNC = get_hls_img
+
     main()
