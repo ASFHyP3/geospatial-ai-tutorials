@@ -1,4 +1,5 @@
 import warnings
+from pathlib import Path
 
 import numpy as np
 
@@ -11,6 +12,9 @@ import albumentations
 import terratorch
 from terratorch.datamodules import GenericNonGeoSegmentationDataModule
 
+DATA_PATH = Path('hwds') / 'RTC'
+CHIP_PATH = DATA_PATH / 'CHIPS_TM'
+SPLIT_PATH = DATA_PATH / 'SPLITS'
 
 means = [0.03528563, 0.00850812]
 stds = [0.01947893, 0.00549653]
@@ -57,19 +61,19 @@ def main():
         num_classes=2,
         rgb_indices=[0, 1, 0],
         # TODO: Define the data and label paths
-        train_data_root="hwds/CHIPS_TM",
-        train_label_data_root="hwds/CHIPS_TM",
-        val_data_root="hwds/CHIPS_TM",
-        val_label_data_root="hwds/CHIPS_TM",
-        test_data_root="hwds/CHIPS_TM",
-        test_label_data_root="hwds/CHIPS_TM",
+        train_data_root=str(CHIP_PATH),
+        train_label_data_root=str(CHIP_PATH),
+        val_data_root=str(CHIP_PATH),
+        val_label_data_root=str(CHIP_PATH),
+        test_data_root=str(CHIP_PATH),
+        test_label_data_root=str(CHIP_PATH),
         # TODO: Define the split files
-        train_split="hwds/SPLITS/train.txt",
-        val_split="hwds/SPLITS/val.txt",
-        test_split="hwds/SPLITS/test.txt",
+        train_split=str(SPLIT_PATH / "train.txt"),
+        val_split=str(SPLIT_PATH / "val.txt"),
+        test_split=str(SPLIT_PATH / "test.txt"),
         # TODO: Define suffixs
-        img_grep="*.BANDS.tif",
-        label_grep="*.MASK.tif",
+        img_grep="*BANDS.tif",
+        label_grep="*MASK.tif",
         # TODO: Update the standardization values. They need to be the same length as the data.
         #  You can define a constant_scale that applies a multiplicator in case the data does not align with the the standardization values.
         # constant_scale=None,
@@ -122,7 +126,7 @@ def main():
         precision="16-mixed",  # Speed up training with half precision, delete for full precision training.
         num_nodes=1,
         logger=True,  # Uses TensorBoard by default
-        max_epochs=100,
+        max_epochs=10,
         log_every_n_steps=1,
         callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
         # TODO Define output dir

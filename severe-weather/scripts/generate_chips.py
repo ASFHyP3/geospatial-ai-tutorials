@@ -20,27 +20,29 @@ from rasterio.windows import Window
 from shapely.geometry import box
 from sklearn.model_selection import train_test_split
 
-
-MINIMUM_VALID_DATA_PERCENT = 50.0
+QUITE = True
+CHIP_SIZE = 256
+RNG_SEED = 42
 
 
 def main():
+    print(f'Chipping Data for {MODALITY}')
     hwds_path = Path("hwds")
-    rtc_path = hwds_path / "RTC"
+    modality_path = hwds_path / MODALITY
 
     data_paths = {
-        "RTC": hwds_path / "RTC",
-        "RAW": rtc_path / "RAW",
-        "WGS84": rtc_path / "WGS84",
-        "MERGE": rtc_path / "MERGE",
-        "CHIPS": rtc_path / "CHIPS",
-        "CHIPS_TM": rtc_path / "CHIPS_TM",
-        "PLOTS": rtc_path / "PLOTS",
-        "SPLITS": rtc_path / "SPLITS",
+        MODALITY: hwds_path / MODALITY,
+        "RAW": modality_path / "RAW",
+        "WGS84": modality_path / "WGS84",
+        "MERGE": modality_path / "MERGE",
+        "CHIPS": modality_path / "CHIPS",
+        "CHIPS_TM": modality_path / "CHIPS_TM",
+        "PLOTS": modality_path / "PLOTS",
+        "SPLITS": modality_path / "SPLITS",
     }
 
-    # for p in ("CHIPS", "CHIPS_TM", "SPLITS"):
-    #     shutil.rmtree(data_paths[p], ignore_errors=True)
+    for p in ("CHIPS", "CHIPS_TM", "SPLITS", "MERGE", "PLOTS", "SPLITS"):
+        shutil.rmtree(data_paths[p], ignore_errors=True)
 
     for p in data_paths.values():
         p.mkdir(parents=True, exist_ok=True)
@@ -48,11 +50,50 @@ def main():
     gdf = _load_event_database(hwds_path)
 
     # keepers = [1442, 622, 1079, 628]
+    # keepers = [1442, 622]
     # gdf = gdf[gdf["swathID"].isin(keepers)]
 
     earthaccess.login()
 
-    chip_swaths(gdf, data_paths)
+    tm_chips = []
+
+    for i, (swathID, swath) in enumerate(gdf.iterrows(), start=1):
+        print(f'Processing Swath {swathID} ({i} / {len(gdf)})')
+
+        results = search_data(swath)
+
+        local_files = earthaccess.download(
+            results, local_path=data_paths["RAW"], show_progress=True
+        )
+
+        data_tifs = [f for f in local_files if f.name.endswith(".tif")]
+
+        if len(data_tifs) == 0:
+            print(f"Skipping: no data for swath {swath['swathID']}")
+            continue
+
+        merged_data = _get_merged_swath_data(data_tifs, swath, data_paths)
+
+        if merged_data is None or not is_valid_data(merged_data):
+            print("Skipping: not enough valid data")
+            continue
+
+        print("Chipping!")
+        merged_data = _stack_bands(merged_data, data_bands=STACK_BANDS)
+        chips = _chip_data(merged_data, data_paths)
+
+        good_chips = filter_chips(chips)
+        print(f"Found {len(good_chips)} good chips")
+
+        for chip in good_chips:
+            for band, chip_path in chip.items():
+                if band not in ("MASK", "BANDS"):
+                    continue
+
+                dest = data_paths["CHIPS_TM"] / chip_path.name
+                shutil.copy(chip_path, dest)
+
+        tm_chips += good_chips
 
     for _, swath in gdf.iterrows():
         swath_id = _make_swath_id(swath["swathID"])
@@ -62,21 +103,28 @@ def main():
             print(f"no chips for {swath_id}")
             continue
 
-        all_chips = list(data_paths["CHIPS"].glob(f"{swath_id}.*.tif"))
-        good_chips = list(data_paths["CHIPS_TM"].glob(f"{swath_id}.*.tif"))
+        all_chips = list(data_paths["CHIPS"].glob(f"*.{swath_id}.*.tif"))
+        good_chips = list(data_paths["CHIPS_TM"].glob(f"*.{swath_id}.*.tif"))
 
         print(f"plotting {swath_id}")
         _plot_chips(
             merged_file[0], all_chips, good_chips, swath, save_to=data_paths["PLOTS"]
         )
 
-    band_chips = list(data_paths["CHIPS_TM"].glob("*.BANDS.tif"))
+    band_chips = list(data_paths["CHIPS_TM"].glob("*BANDS.tif"))
 
     create_split_files(band_chips, splits_path=data_paths["SPLITS"])
     means, stds = calculate_stats(chips=band_chips)
 
-    print(f"Means (VV, VH): {means}")
-    print(f"Stds (VV, VH): {stds}")
+    means_str = ", ".join(f"{x:.4f}" for x in means)
+    stds_str = ", ".join(f"{x:.4f}" for x in stds)
+
+    stats_str = (
+        f"Means {STACK_BANDS}: {means_str}\n"
+        f"Stds {STACK_BANDS}: {stds_str}\n"
+    )
+    (modality_path / 'statistics.txt').write_text(stats_str)
+    print(stats_str)
 
 
 def _load_event_database(data_dir: Path):
@@ -125,11 +173,12 @@ def _add_buffered(gdf):
 
 
 def create_split_files(band_chips: list[Path], splits_path: Path) -> None:
-    chip_ids = [p.name.removesuffix(".BANDS.tif") for p in band_chips]
+    chip_ids = [p.name.removesuffix("BANDS.tif") for p in band_chips]
 
-    train, test = train_test_split(chip_ids, test_size=0.3, random_state=42)
+    the_rest, test = train_test_split(chip_ids, test_size=0.15, random_state=RNG_SEED)
+    train, val = train_test_split(the_rest, test_size=0.15, random_state=RNG_SEED)
 
-    splits = {"train": train, "val": test, "test": test}
+    splits = {"train": train, "val": val, "test": test}
 
     for split, chip_ids in splits.items():
         split_path = splits_path / f"{split}.txt"
@@ -169,64 +218,22 @@ def calculate_stats(chips: list[Path], n_bands: int = 2) -> tuple:
     return mean, std
 
 
-def chip_swaths(gdf, data_paths):
-    tm_chips = []
-
-    for _, swath in gdf.iterrows():
-        merged_data = _get_data_for_swath(swath, data_paths)
-
-        if merged_data is None or not _is_valid_rtc(merged_data):
-            print("Skipping: not enough valid data")
-            continue
-
-        print("Chipping!")
-        merged_data = _stack_rtc_bands(merged_data, data_bands=("VV", "VH"))
-        chips = _chip_rtc_data(merged_data, data_paths)
-
-        good_chips = _filter_chips(chips)
-        print(f"Found {len(good_chips)} good chips")
-
-        for chip in good_chips:
-            for band, chip_path in chip.items():
-                if band not in ("MASK", "BANDS"):
-                    continue
-
-                dest = data_paths["CHIPS_TM"] / chip_path.name
-                shutil.copy(chip_path, dest)
-
-        tm_chips += good_chips
-
-    return tm_chips
-
-
 def _plot_chips(
     merged_band_file,
     all_chips,
     good_chips,
     swath,
     save_to: Path | None = None,
-    quite=True,
+    quite=QUITE,
 ):
     crs_pc = ccrs.PlateCarree()
 
     with rasterio.open(merged_band_file) as ds:
         bounds = ds.bounds
         full_extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
-        rtc_data = ds.read()
+        band_data = ds.read()
 
-    def normalize_image_array(
-        input_array: np.ndarray, vmin: float, vmax: float
-    ) -> np.ndarray:
-        input_array = input_array.astype(float)
-        scaled_array = (input_array - vmin) / (vmax - vmin)
-        scaled_array[np.isnan(input_array)] = 0
-        normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
-
-        return normalized_array
-
-    vv = normalize_image_array(np.sqrt(rtc_data[0]), 0.14, 0.52)
-    vh = normalize_image_array(np.sqrt(rtc_data[1]), 0.05, 0.259)
-    img = np.stack([vv, vh, vv], axis=-1)
+    img = get_img(band_data)
 
     # plot BANDS and geom
     fig, ax = plt.subplots(
@@ -287,35 +294,28 @@ def _make_swath_id(swathID):
     return f"{int(swathID):04d}"
 
 
-def _get_data_for_swath(swath: pd.Series, data_paths: dict) -> dict[str, Path] | None:
+def _get_merged_swath_data(data_tifs: list[Path], swath: pd.Series, data_paths: dict) -> dict[str, Path]:
     swathID = f"{int(swath['swathID']):04d}"
-
-    results = _search_data(swath)
-    local_files = earthaccess.download(
-        results, local_path=data_paths["RAW"], show_progress=True
-    )
-    data_tifs = [f for f in local_files if f.name.endswith(".tif")]
-
-    if len(data_tifs) == 0:
-        return None
 
     reprojected_tifs = _reproject_files(
         data_tifs, output_path=data_paths["WGS84"], prefix=f"{swathID}."
     )
 
     merged = {}
-    for band in ("VV", "VH", "mask"):
-        band_files = [f for f in reprojected_tifs if band in f.name]
 
-        merged_name = _make_merged_name(band_files[0].name)
+    for band in ALL_BANDS:
+        band_files = [f for f in reprojected_tifs if band in band_from_filename(f.name)]
+
+        merged_name = make_merge_name(band_files[0].name)
         merged_band_path = _merge(
             band_files, output_file=data_paths["MERGE"] / merged_name
         )
 
         merged[band] = merged_band_path
 
+    band = ALL_BANDS[0]
     event_tif, mask_tif = _generate_masks(
-        merged["VV"], swath, merged_extension="VV.tif"
+        merged[band], swath, merged_extension=f"{band}.tif"
     )
 
     return {
@@ -323,60 +323,6 @@ def _get_data_for_swath(swath: pd.Series, data_paths: dict) -> dict[str, Path] |
         "EVENT": event_tif,
         "MASK": mask_tif,
     }
-
-
-def _is_valid_rtc(merged: dict[str, Path]) -> bool:
-    with rasterio.open(merged["mask"]) as ds:
-        validity_mask = ds.read(1)
-
-    with rasterio.open(merged["EVENT"]) as ds:
-        event_mask = ds.read(1)
-
-    is_event_pixel = event_mask == 1
-    # https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#validity-mask
-    is_valid_pixel = np.isin(validity_mask, [0, 1])
-
-    total_event_pixels = is_event_pixel.sum()
-    valid_event_pixels = (is_event_pixel & is_valid_pixel).sum()
-
-    pct_valid_data = 100.0 * valid_event_pixels / total_event_pixels
-    print(f"Percent of the event with valid data: {pct_valid_data:.1f}%")
-
-    return pct_valid_data > MINIMUM_VALID_DATA_PERCENT
-
-
-def _make_merged_name(template_filename: str) -> str:
-    """
-    https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#naming-convention
-    swathID.OPERA_L2_RTC-S1_[BurstID]_[StartDateTime]_[ProductGenerationDateTime] _[Sensor]_[PixelSpacing]_[ProductVersion]_[LayerName].Ext
-
-    Input:   1442.OPERA_L2_RTC-S1_T063-133415-IW2_20170620T001327Z_20250925T045340Z_S1A_30_v1.0_VV.tif
-
-    Returns: 1442.OPERA_L2_RTC-133415-IW2_20170620_S1A_30_v1.0_VV.tif
-    """
-
-    # ['1442.OPERA', 'L2', 'RTC-S1', 'T063-133415-IW2', '20170620T001327Z', '20250925T045340Z', 'S1A', '30', 'v1.0', 'VV.tif']
-    name_parts = template_filename.split("_")
-
-    name_parts.pop(5)  # Remove Product Generation Time
-    name_parts.pop(3)  # Remove Burst ID
-
-    return "_".join(name_parts)
-
-
-def _search_data(swath: pd.Series) -> list[DataGranule]:
-    start_date = swath["s1Date"]
-    final_date = start_date + timedelta(days=1)
-
-    date_range = (start_date.strftime("%Y-%m-%d"), final_date.strftime("%Y-%m-%d"))
-
-    results = earthaccess.search_data(
-        short_name=["OPERA_L2_RTC-S1_V1"],
-        temporal=date_range,
-        bounding_box=swath["geometry"].bounds,
-    )
-
-    return results
 
 
 def _reproject_files(
@@ -493,12 +439,13 @@ def _generate_masks(
     return event_path, mask_path
 
 
-def _stack_rtc_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
+def _stack_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
     with rasterio.open(merged[data_bands[0]]) as src:
         meta = src.meta.copy()
 
+    band = data_bands[0]
     meta.update(count=len(data_bands), dtype=np.float32)
-    stacked_file_name = _rename(merged["VV"], "VV.tif", "BANDS.tif")
+    stacked_file_name = _rename(merged[band], f"{band}.tif", "BANDS.tif")
 
     with rasterio.open(stacked_file_name, "w", **meta) as dst:
         for idx, band in enumerate(data_bands, start=1):
@@ -510,7 +457,7 @@ def _stack_rtc_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
     return merged
 
 
-def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_size=256):
+def _chip_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_size=CHIP_SIZE):
     chips = {}
 
     grid = []
@@ -527,7 +474,7 @@ def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_si
                 chips[tile_id] = {}
                 grid.append((tile_id, bounds))
 
-    for chip_layer in ("BANDS", "EVENT", "MASK"):
+    for chip_layer in CHIP_BANDS:
         layer_path = merged[chip_layer]
 
         with rasterio.open(layer_path) as src:
@@ -551,9 +498,7 @@ def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_si
                     }
                 )
 
-                chip_name = layer_path.name.replace(
-                    f"{chip_layer}.tif", f"{tile_id}.{chip_layer}.tif"
-                )
+                chip_name = f"{tile_id}.{layer_path.name}"
                 chip_path = data_paths["CHIPS"] / chip_name
 
                 with rasterio.open(chip_path, "w", **chip_meta) as dst:
@@ -564,7 +509,120 @@ def _chip_rtc_data(merged: dict[str, Path], data_paths: dict[str, Path], chip_si
     return chips
 
 
-def _filter_chips(chips: dict[str, dict]) -> list[dict]:
+def search_data(swath):
+    if MODALITY == 'HLS':
+        results = search_hls_data(swath)
+    elif MODALITY == 'RTC':
+        results = search_rtc_data(swath)
+
+    return results
+
+
+def is_valid_data(merged_data):
+    if MODALITY == 'HLS':
+        is_valid = is_valid_hls(merged_data)
+    elif MODALITY == 'RTC':
+        is_valid = is_valid_rtc(merged_data)
+
+    return is_valid
+
+
+def filter_chips(chips):
+    if MODALITY == 'HLS':
+        filtered_chips = filter_hls_chips(chips)
+    elif MODALITY == 'RTC':
+        filtered_chips = filter_rtc_chips(chips)
+
+    return filtered_chips
+
+
+def band_from_filename(filename):
+    if MODALITY == 'HLS':
+        band = band_from_hls_filename(filename)
+    elif MODALITY == 'RTC':
+        band = band_from_rtc_filename(filename)
+
+    return band
+
+
+def make_merge_name(filename):
+    if MODALITY == 'HLS':
+        merge_name = make_merged_hls_name(filename)
+    elif MODALITY == 'RTC':
+        merge_name = make_merged_rtc_name(filename)
+
+    return merge_name
+
+
+def get_img(band_data):
+    if MODALITY == 'HLS':
+        img = get_hls_img(band_data)
+    elif MODALITY == 'RTC':
+        img = get_rtc_img(band_data)
+
+    return img
+
+
+# ------------------------- RTC FUNCTIONS --------------------------- #
+def search_rtc_data(swath: pd.Series) -> list[DataGranule]:
+    start_date = swath["s1Date"]
+    final_date = start_date + timedelta(days=1)
+
+    date_range = (start_date.strftime("%Y-%m-%d"), final_date.strftime("%Y-%m-%d"))
+
+    results = earthaccess.search_data(
+        short_name=["OPERA_L2_RTC-S1_V1"],
+        temporal=date_range,
+        bounding_box=swath["geometry"].bounds,
+    )
+
+    return results
+
+
+def band_from_rtc_filename(filename):
+    # OPERA_L2_RTC-S1_T063-133415-IW2_20170620T001327Z_20250925T045340Z_S1A_30_v1.0_VV.tif
+    return filename.split('_')[-1].split('.')[0]
+
+
+def make_merged_rtc_name(template_filename: str) -> str:
+    """
+    https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#naming-convention
+    swathID.OPERA_L2_RTC-S1_[BurstID]_[StartDateTime]_[ProductGenerationDateTime] _[Sensor]_[PixelSpacing]_[ProductVersion]_[LayerName].Ext
+
+    Input:   1442.OPERA_L2_RTC-S1_T063-133415-IW2_20170620T001327Z_20250925T045340Z_S1A_30_v1.0_VV.tif
+    Returns: 1442.OPERA_L2_RTC-133415-IW2_20170620_S1A_30_v1.0_VV.tif
+    """
+
+    # ['1442.OPERA', 'L2', 'RTC-S1', 'T063-133415-IW2', '20170620T001327Z', '20250925T045340Z', 'S1A', '30', 'v1.0', 'VV.tif']
+    name_parts = template_filename.split("_")
+
+    name_parts.pop(5)  # Remove Product Generation Time
+    name_parts.pop(3)  # Remove Burst ID
+
+    return "_".join(name_parts)
+
+
+def is_valid_rtc(merged: dict[str, Path]) -> bool:
+    with rasterio.open(merged["mask"]) as ds:
+        validity_mask = ds.read(1)
+
+    with rasterio.open(merged["EVENT"]) as ds:
+        event_mask = ds.read(1)
+
+    is_event_pixel = event_mask == 1
+    # https://hyp3-docs.asf.alaska.edu/guides/opera_rtc_product_guide/#validity-mask
+    is_valid_pixel = np.isin(validity_mask, [0, 1])
+
+    total_event_pixels = is_event_pixel.sum()
+    valid_event_pixels = (is_event_pixel & is_valid_pixel).sum()
+
+    pct_valid_data = 100.0 * valid_event_pixels / total_event_pixels
+    print(f"Percent of the event with valid data: {pct_valid_data:.1f}%")
+
+    return pct_valid_data > 50.0
+
+
+def filter_rtc_chips(chips: dict[str, dict]) -> list[dict]:
     good_chips = []
 
     for tile_id, chip in chips.items():
@@ -588,5 +646,202 @@ def _filter_chips(chips: dict[str, dict]) -> list[dict]:
     return good_chips
 
 
+def normalize_image_array(
+    input_array: np.ndarray, vmin: float, vmax: float
+) -> np.ndarray:
+    input_array = input_array.astype(float)
+    scaled_array = (input_array - vmin) / (vmax - vmin)
+    scaled_array[np.isnan(input_array)] = 0
+    normalized_array = np.round(np.clip(scaled_array, 0, 1) * 255).astype(np.uint8)
+
+    return normalized_array
+
+
+def get_rtc_img(rtc_data: np.ndarray) -> np.ndarray:
+    vv = normalize_image_array(np.sqrt(rtc_data[0]), 0.14, 0.52)
+    vh = normalize_image_array(np.sqrt(rtc_data[1]), 0.05, 0.259)
+
+    img = np.stack([vv, vh, vv], axis=-1)
+
+    return img
+
+
+# ------------------------- HLS FUNCTIONS --------------------------- #
+
+def search_hls_data(swath: pd.Series) -> list[DataGranule]:
+    start_date = swath["ls5hlsDate"]
+    final_date = start_date + timedelta(days=1)
+    date_range = (start_date.strftime("%Y-%m-%d"), final_date.strftime("%Y-%m-%d"))
+
+    #  collection_ids = ["C2021957295-LPCLOUD"]  # S2
+    collection_ids = ["C2021957657-LPCLOUD", "C2021957295-LPCLOUD"] # S2, L30
+
+    results = earthaccess.search_data(
+        concept_id=collection_ids,
+        temporal=date_range,
+        bounding_box=swath["geometry"].bounds,
+        cloud_hosted=True,
+    )
+
+    return results
+
+
+def band_from_hls_filename(filename):
+    # 1442.HLS.L30.T15TUG.2017167T165321.v2.0.B06.tif
+    parts = filename.split('.')
+
+    sensor, band = parts[2], parts[-2]
+
+    bands = {
+        "L30": {
+           "B02": "B",
+           "B03": "G",
+           "B04": "R",
+           "B05": "N",
+           "B06": "SW1",
+           "B07": "SW2",
+           "Fmask": "Fmask",
+        },
+        "S30": {
+           "B02": "B",
+           "B03": "G",
+           "B04": "R",
+           "B08": "N",
+           "B11": "SW1",
+           "B12": "SW2",
+           "Fmask": "Fmask",
+        }
+    }
+
+    try:
+        return bands[sensor][band]
+    except KeyError:
+        return ''
+
+
+def make_merged_hls_name(template_filename: str) -> str:
+    parts = template_filename.split(".")
+    parts[4] = parts[4][0:7]
+    parts.pop(3)
+    parts[-2] = band_from_hls_filename(template_filename)
+    f_template_merge = ".".join(parts)
+    return f_template_merge
+
+
+def clear_px_Fmask(Fmask: np.ndarray) -> np.ndarray:
+    fmask_clear = np.array([
+        0, 4, 16, 20, 32, 36, 48, 52,
+        64, 68, 80, 84, 96, 100, 112, 116,
+        128, 132, 144, 148, 160, 164, 176, 180,
+        192, 196, 208, 212, 224, 228, 240, 244
+    ], dtype=Fmask.dtype)
+
+    cloudmask = np.ones_like(Fmask, dtype=np.uint8)
+    cloudmask[np.isin(Fmask, fmask_clear)] = 0
+    cloudmask[Fmask == 255] = 255
+
+    return cloudmask
+
+
+def is_valid_hls(merged: dict[str, Path]):
+    f_event, f_qc = merged['EVENT'], merged['Fmask']
+
+    with rasterio.open(f_qc) as ds:
+        qc = clear_px_Fmask(ds.read(1))
+
+    with rasterio.open(f_event) as ds:
+        event_mask = ds.read(1)
+
+    ny, nx = np.shape(qc)
+    mask = np.zeros((ny, nx), "uint8")
+
+    ok = np.where((event_mask == 1) & (qc == 0))
+    n_cf_event = len(ok[0])
+    mask[ok] = 1
+
+    ok = np.where((event_mask == 1) & (qc != 255))
+    n_valid_event = len(ok[0])
+
+    ok = np.where((event_mask == 1))
+    n_event = len(ok[0])
+
+    pct_cf_event = 0
+    if n_valid_event == 0:
+        print("No coverage")
+    else:
+        pct_cf_event = 100.0 * (n_cf_event / n_event)
+    print("Percent CF/valid in Event:", pct_cf_event)
+
+    return pct_cf_event > 50
+
+
+def filter_hls_chips(chips: dict[str, dict]) -> list[dict]:
+    good_chips = []
+
+    for tile_id, chip in chips.items():
+        with rasterio.open(chip["Fmask"]) as ds:
+            qc = clear_px_Fmask(ds.read(1))
+
+        with rasterio.open(chip["EVENT"]) as ds:
+            event = ds.read(1)
+
+        ny, nx = qc.shape
+        n_px = 1.0 * ny * nx
+
+        # cloud-free pixels (0 clear, 1 cloud, 255 nodata)
+        n_cf = len(np.where(qc == 0)[0])
+        pct_cf = 100.0 * (n_cf / n_px)
+
+        # event pixels
+        n_ev = len(np.where(event > 0)[0])
+
+        # pct of chip in event
+        pct_ev = 100.0 * (n_ev / n_px) if n_ev > 0 else 0
+
+        if pct_cf > 95 and pct_ev > 1:
+            good_chips.append(chip)
+
+    return good_chips
+
+
+def bytescale(arr, cmin=0, cmax=1, low=0, high=255):
+    # clip the data to be in the range of cmin to cmax
+    arr = np.clip(arr, cmin, cmax)
+    high = float(high)
+    low = float(low)
+    cmax = float(cmax)
+    cmin = float(cmin)
+    m = (high - low) / (cmax - cmin)  # slope
+    b = high - (m * cmax)  # intercept
+    arr = np.uint8((m * arr) + b)
+    return arr
+
+
+def get_hls_img(hls_data: np.ndarray) -> np.ndarray:
+    # B04
+    r = bytescale(np.sqrt(np.clip(hls_data[2] / 10000.0, 0, 2)), 0, 0.5)
+
+    # B03
+    g = bytescale(np.sqrt(np.clip(hls_data[1] / 10000.0, 0, 2)), 0, 0.5)
+
+    # B02
+    b = bytescale(np.sqrt(np.clip(hls_data[0] / 10000.0, 0, 2)), 0, 0.5)
+
+    rgb = np.dstack((r, g, b))
+    return rgb
+
+
 if __name__ == "__main__":
+    # HLS Modality Settings
+    MODALITY = "HLS"
+    ALL_BANDS = ("B", "G", "R", "N", "SW1", "SW2", "Fmask")
+    STACK_BANDS = ("B", "G", "R", "N", "SW1", "SW2")
+    CHIP_BANDS = ("BANDS", "EVENT", "MASK", "Fmask")
+    main()
+
+    # RTC Modality Settings
+    MODALITY = "RTC"
+    ALL_BANDS = ("VV", "VH", "mask")
+    STACK_BANDS = ("VV", "VH")
+    CHIP_BANDS = ("BANDS", "EVENT", "MASK")
     main()
