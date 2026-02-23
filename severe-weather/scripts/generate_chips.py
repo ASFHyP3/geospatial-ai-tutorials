@@ -41,8 +41,8 @@ def main():
         "SPLITS": modality_path / "SPLITS",
     }
 
-    # for p in ("CHIPS", "CHIPS_TM", "SPLITS"):
-    #     shutil.rmtree(data_paths[p], ignore_errors=True)
+    for p in ("CHIPS", "CHIPS_TM", "SPLITS", "MERGE", "PLOTS", "SPLITS"):
+        shutil.rmtree(data_paths[p], ignore_errors=True)
 
     for p in data_paths.values():
         p.mkdir(parents=True, exist_ok=True)
@@ -57,7 +57,9 @@ def main():
 
     tm_chips = []
 
-    for _, swath in gdf.iterrows():
+    for i, (swathID, swath) in enumerate(gdf.iterrows(), start=1):
+        print(f'Processing Swath {swathID} ({i} / {len(gdf)})')
+
         results = search_data(swath)
 
         local_files = earthaccess.download(
@@ -109,7 +111,7 @@ def main():
             merged_file[0], all_chips, good_chips, swath, save_to=data_paths["PLOTS"]
         )
 
-    band_chips = list(data_paths["CHIPS_TM"].glob("*.BANDS.tif"))
+    band_chips = list(data_paths["CHIPS_TM"].glob("*BANDS.tif"))
 
     create_split_files(band_chips, splits_path=data_paths["SPLITS"])
     means, stds = calculate_stats(chips=band_chips)
@@ -171,7 +173,7 @@ def _add_buffered(gdf):
 
 
 def create_split_files(band_chips: list[Path], splits_path: Path) -> None:
-    chip_ids = [p.name.removesuffix(".BANDS.tif") for p in band_chips]
+    chip_ids = [p.name.removesuffix("BANDS.tif") for p in band_chips]
 
     the_rest, test = train_test_split(chip_ids, test_size=0.15, random_state=RNG_SEED)
     train, val = train_test_split(the_rest, test_size=0.15, random_state=RNG_SEED)
@@ -443,7 +445,7 @@ def _stack_bands(merged: dict[str, Path], data_bands: tuple[str]) -> None:
 
     band = data_bands[0]
     meta.update(count=len(data_bands), dtype=np.float32)
-    stacked_file_name = _rename(merged[band], f"{band}.tif", ".BANDS.tif")
+    stacked_file_name = _rename(merged[band], f"{band}.tif", "BANDS.tif")
 
     with rasterio.open(stacked_file_name, "w", **meta) as dst:
         for idx, band in enumerate(data_bands, start=1):

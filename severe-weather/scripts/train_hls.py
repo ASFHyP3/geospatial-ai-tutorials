@@ -1,4 +1,5 @@
 import warnings
+from pathlib import Path
 
 import numpy as np
 
@@ -12,22 +13,13 @@ import terratorch
 from terratorch.datamodules import GenericNonGeoSegmentationDataModule
 
 
-chip_means = [
-    np.float32(430.11542),
-    np.float32(733.83105),
-    np.float32(736.5215),
-    np.float32(2645.7449),
-    np.float32(2494.3672),
-    np.float32(1499.4843),
-]
-chip_stds = [
-    np.float32(184.36305),
-    np.float32(218.96432),
-    np.float32(346.92596),
-    np.float32(822.3877),
-    np.float32(688.9506),
-    np.float32(624.86896),
-]
+DATA_PATH = Path('hwds') / 'HLS'
+CHIP_PATH = DATA_PATH / 'CHIPS_TM'
+SPLIT_PATH = DATA_PATH / 'SPLITS'
+
+
+chip_means = [411.7059, 763.9855, 764.2568, 2963.1562, 2305.7603, 1292.0051]
+chip_stds = [152.3670, 163.9961, 279.5233, 561.3533, 578.2343, 520.6585]
 
 
 def plot_sample(sample):
@@ -63,19 +55,19 @@ def main():
         num_classes=2,
         rgb_indices=[2, 1, 0],
         # TODO: Define the data and label paths
-        train_data_root="hwds/CHIPS_TM",
-        train_label_data_root="hwds/CHIPS_TM",
-        val_data_root="hwds/CHIPS_TM",
-        val_label_data_root="hwds/CHIPS_TM",
-        test_data_root="hwds/CHIPS_TM",
-        test_label_data_root="hwds/CHIPS_TM",
+        train_data_root=str(CHIP_PATH),
+        train_label_data_root=str(CHIP_PATH),
+        val_data_root=str(CHIP_PATH),
+        val_label_data_root=str(CHIP_PATH),
+        test_data_root=str(CHIP_PATH),
+        test_label_data_root=str(CHIP_PATH),
         # TODO: Define the split files
-        train_split="hwds/SPLITS/train.txt",
-        val_split="hwds/SPLITS/val.txt",
-        test_split="hwds/SPLITS/test.txt",
+        train_split=str(SPLIT_PATH / "train.txt"),
+        val_split=str(SPLIT_PATH / "val.txt"),
+        test_split=str(SPLIT_PATH / "test.txt"),
         # TODO: Define suffixs
-        img_grep="*.BANDS.tif",
-        label_grep="*.MASK.tif",
+        img_grep="*BANDS.tif",
+        label_grep="*MASK.tif",
         # TODO: Update the standardization values. They need to be the same length as the data.
         #  You can define a constant_scale that applies a multiplicator in case the data does not align with the the standardization values.
         # constant_scale=None,
@@ -129,7 +121,7 @@ def main():
         precision="16-mixed",  # Speed up training with half precision, delete for full precision training.
         num_nodes=1,
         logger=True,  # Uses TensorBoard by default
-        max_epochs=100,
+        max_epochs=10,
         log_every_n_steps=1,
         callbacks=[checkpoint_callback, pl.callbacks.RichProgressBar()],
         # TODO Define output dir
