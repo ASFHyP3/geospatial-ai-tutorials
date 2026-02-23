@@ -95,11 +95,9 @@ def main():
     len(val_dataset)
 
     # Plotting a few samples
-    # plot_sample(val_dataset[0])
-    # plot_sample(val_dataset[1])
-    # plot_sample(val_dataset[2])
-
-    warnings.filterwarnings("ignore")
+    plot_sample(val_dataset[0])
+    plot_sample(val_dataset[1])
+    plot_sample(val_dataset[2])
 
     pl.seed_everything(0)
 
