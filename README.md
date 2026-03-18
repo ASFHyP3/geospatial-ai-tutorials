@@ -5,6 +5,8 @@ A repository containing tutorials for how to fine-tuning geospatial AI models
 ## Severe Weather Dataset
 
 Tutorials based around the Sever weather use case.
+ - Github: https://github.com/jrbell1/hwds_db
+ - Hugging Face: https://huggingface.co/datasets/wbhorn/hail_and_wind_damage_chips
 
 ### Notebooks
 
