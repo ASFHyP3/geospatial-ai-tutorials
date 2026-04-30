@@ -12,6 +12,9 @@ Tutorials based around the Sever weather use case.
 
 ## Severe Weather Notebooks
 
+- [TerraMind Training with Hail and Wind Damage Dataset](https://github.com/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/train_pristine_hls_terramind.ipynb)
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/train_pristine_hls_terramind.ipynb)
+
 - [Chipping Opera RTC Data](https://github.com/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/chip_opera_rtc_data.ipynb)
   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ASFHyP3/geospatial-ai-tutorials/blob/develop/severe-weather/notebooks/chip_opera_rtc_data.ipynb)
 
